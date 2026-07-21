@@ -49,6 +49,11 @@ import {
   crawlAndParseUrl,
   handleAsAssetBookmark,
 } from "./crawler/crawlAndParse";
+import { buildLinkResolverRegistry } from "./linkResolver/registry";
+import {
+  markLinkResolverFailure,
+  persistResolvedLinkContent,
+} from "./linkResolver/persist";
 import {
   getContentTypeAndMetadata,
   loadStoredProbeMetadata,
@@ -63,7 +68,7 @@ export { crawlPage } from "./crawler/crawlPage";
 const tracer = getTracer("@karakeep/workers");
 
 interface CrawlerRunResult {
-  status: "completed";
+  status: "completed" | "failed";
 }
 
 export class CrawlerWorker {
@@ -124,12 +129,15 @@ export class CrawlerWorker {
             runCrawler(job, queue.opts.defaultJobArgs.numRetries),
           ),
         ),
-        onComplete: async (job: DequeuedJob<ZCrawlLinkRequest>) => {
+        onComplete: async (
+          job: DequeuedJob<ZCrawlLinkRequest>,
+          result: CrawlerRunResult,
+        ) => {
           workerStatsCounter.labels("crawler", "completed").inc();
           const jobId = job.id;
           logger.info(`[Crawler][${jobId}] Completed successfully`);
           const bookmarkId = job.data.bookmarkId;
-          if (bookmarkId) {
+          if (bookmarkId && result.status !== "failed") {
             await db
               .update(bookmarkLinks)
               .set({
@@ -376,6 +384,61 @@ async function runCrawler(
   logger.info(
     `[Crawler][${jobId}] Will crawl "${truncateUrl(url)}" for link with id "${bookmarkId}"`,
   );
+
+  const linkResolverRegistry = buildLinkResolverRegistry({
+    xiaohongshuBackend: serverConfig.crawler.xiaohongshuBackend,
+    xiaohongshuSpiderEndpoint: serverConfig.crawler.xiaohongshuSpiderEndpoint,
+    xiaohongshuMcpEndpoint: serverConfig.crawler.xiaohongshuMcpEndpoint,
+  });
+  const linkResolverProvider = linkResolverRegistry.selectProvider(url);
+  if (linkResolverProvider) {
+    logger.info(
+      `[Crawler][${jobId}] Resolving "${truncateUrl(url)}" with provider "${linkResolverProvider.id}"`,
+    );
+    const resolved = await linkResolverProvider.resolve({
+      url,
+      userId,
+      jobId,
+      bookmarkId,
+      abortSignal: job.abortSignal,
+    });
+    job.abortSignal.throwIfAborted();
+
+    if (resolved.status === "success") {
+      await persistResolvedLinkContent({
+        bookmarkId,
+        userId,
+        jobId,
+        content: resolved.content,
+        oldContentAssetId,
+        oldImageAssetId,
+        abortSignal: job.abortSignal,
+        runProxy,
+      });
+      await enqueuePostCrawlJobs(job, bookmarkId, userId, url);
+      return { status: "completed" };
+    }
+
+    if (
+      resolved.status === "fallback" &&
+      linkResolverProvider.fallbackPolicy === "fallback_to_generic"
+    ) {
+      logger.warn(
+        `[Crawler][${jobId}] Provider "${linkResolverProvider.id}" requested generic fallback: ${resolved.reason}`,
+      );
+    } else {
+      const reason =
+        resolved.status === "fallback"
+          ? resolved.reason
+          : `[${linkResolverProvider.id}] ${resolved.reason}`;
+      if (resolved.status === "failure" && resolved.retryable) {
+        throw new Error(reason);
+      }
+      logger.warn(`[Crawler][${jobId}] Link resolver failed: ${reason}`);
+      await markLinkResolverFailure(bookmarkId, reason);
+      return { status: "failed" };
+    }
+  }
 
   if (precrawledArchiveAssetId) {
     logger.info(
