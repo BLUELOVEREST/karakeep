@@ -1,11 +1,13 @@
 name: Build and Push Docker
 on:
+  workflow_dispatch:
   release:
     types:
       - created
   push:
     branches:
       - main
+      - "eric/**"
 
 jobs:
   build:
@@ -69,6 +71,8 @@ jobs:
         id: tags
         run: |
           set -euo pipefail
+          safe_ref=$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_.-]+/-/g')
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           add_suffix() {
             local value="$1"
             local out=""
@@ -82,10 +86,18 @@ jobs:
           all_tags=""
 
           # Only push 'latest' tags on pushes to main, not on releases
-          if [[ "${{ github.event_name }}" == "push" ]]; then
+          if [[ "${{ github.event_name }}" == "push" && "${GITHUB_REF_NAME}" == "main" ]]; then
             latest_with_suffix=$(add_suffix "${{ matrix.tags_latest }}")
             all_tags="${latest_with_suffix}"
             echo "latest=${latest_with_suffix}" >> "$GITHUB_OUTPUT"
+          fi
+
+          # Fork/custom branches publish branch-scoped images under the fork owner.
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" || ( "${{ github.event_name }}" == "push" && "${GITHUB_REF_NAME}" != "main" ) ]]; then
+            branch_tag="ghcr.io/${owner}/${{ matrix.name }}:${safe_ref}"
+            branch_with_suffix=$(add_suffix "${branch_tag}")
+            all_tags="${branch_with_suffix}"
+            echo "branch=${branch_with_suffix}" >> "$GITHUB_OUTPUT"
           fi
 
           # Only push release-specific tags on releases
@@ -107,8 +119,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ steps.tags.outputs.all }}
-          cache-from: type=registry,ref=ghcr.io/karakeep-app/karakeep-build-cache:${{ matrix.target }}-${{ matrix.suffix }}
-          cache-to: type=registry,mode=max,ref=ghcr.io/karakeep-app/karakeep-build-cache:${{ matrix.target }}-${{ matrix.suffix }}
+          cache-from: type=gha,scope=${{ matrix.target }}-${{ matrix.suffix }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.target }}-${{ matrix.suffix }}
 
   manifest:
     needs: build
@@ -151,9 +163,12 @@ jobs:
           TAGS_LATEST: ${{ matrix.tags_latest }}
           TAGS_RELEASE: ${{ matrix.tags_release }}
           IS_RELEASE: ${{ github.event_name == 'release' }}
-          IS_PUSH: ${{ github.event_name == 'push' }}
+          IS_MAIN_PUSH: ${{ github.event_name == 'push' && github.ref_name == 'main' }}
+          IS_BRANCH_BUILD: ${{ github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref_name != 'main') }}
         run: |
           set -euo pipefail
+          safe_ref=$(echo "${GITHUB_REF_NAME}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_.-]+/-/g')
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
 
           create_manifest() {
             local tag="$1"
@@ -164,11 +179,15 @@ jobs:
           }
 
           # Only create 'latest' manifests on pushes to main
-          if [[ "${IS_PUSH}" == "true" ]]; then
+          if [[ "${IS_MAIN_PUSH}" == "true" ]]; then
             IFS=',' read -ra latest_tags <<< "${TAGS_LATEST}"
             for tag in "${latest_tags[@]}"; do
               create_manifest "$tag"
             done
+          fi
+
+          if [[ "${IS_BRANCH_BUILD}" == "true" ]]; then
+            create_manifest "ghcr.io/${owner}/${{ matrix.name }}:${safe_ref}"
           fi
 
           # Only create release-specific manifests on releases
