@@ -138,6 +138,7 @@ const allEnv = z.object({
   XIAOHONGSHU_BACKEND: z.enum(["auto", "spider_xhs", "mcp"]).default("auto"),
   XIAOHONGSHU_SPIDER_ENDPOINT: z.string().url().optional(),
   XIAOHONGSHU_MCP_ENDPOINT: z.string().url().optional(),
+  COOLAPK_RESOLVER_ENDPOINT: z.string().url().optional(),
   LOG_LEVEL: z.string().default("debug"),
   NO_COLOR: stringBool("false"),
   DEMO_MODE: stringBool("false"),
@@ -389,6 +390,7 @@ const serverConfigSchema = allEnv.transform((val, ctx) => {
       xiaohongshuBackend: val.XIAOHONGSHU_BACKEND,
       xiaohongshuSpiderEndpoint: val.XIAOHONGSHU_SPIDER_ENDPOINT,
       xiaohongshuMcpEndpoint: val.XIAOHONGSHU_MCP_ENDPOINT,
+      coolapkResolverEndpoint: val.COOLAPK_RESOLVER_ENDPOINT,
     },
     ocr: {
       langs: val.OCR_LANGS,

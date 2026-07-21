@@ -389,6 +389,7 @@ async function runCrawler(
     xiaohongshuBackend: serverConfig.crawler.xiaohongshuBackend,
     xiaohongshuSpiderEndpoint: serverConfig.crawler.xiaohongshuSpiderEndpoint,
     xiaohongshuMcpEndpoint: serverConfig.crawler.xiaohongshuMcpEndpoint,
+    coolapkResolverEndpoint: serverConfig.crawler.coolapkResolverEndpoint,
   });
   const linkResolverProvider = linkResolverRegistry.selectProvider(url);
   if (linkResolverProvider) {

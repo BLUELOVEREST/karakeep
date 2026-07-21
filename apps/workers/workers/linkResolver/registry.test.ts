@@ -42,6 +42,29 @@ describe("buildLinkResolverRegistry", () => {
     expect(provider?.fallbackPolicy).toBe("fail_fast");
   });
 
+  it("selects the Coolapk provider for coolapk domains when configured", () => {
+    const registry = buildLinkResolverRegistry({
+      coolapkResolverEndpoint: "http://127.0.0.1:18062/api/coolapk/feed",
+    });
+
+    const provider = registry.selectProvider(
+      "https://www.coolapk.com/feed/71896052",
+    );
+
+    expect(provider?.id).toBe("coolapk");
+  });
+
+  it("returns fail-fast for coolapk domains when the external resolver is not configured", () => {
+    const registry = buildLinkResolverRegistry({});
+
+    const provider = registry.selectProvider(
+      "https://www.coolapk.com/feed/71896052",
+    );
+
+    expect(provider?.id).toBe("coolapk-unconfigured");
+    expect(provider?.fallbackPolicy).toBe("fail_fast");
+  });
+
   it("returns null for generic webpages", () => {
     const registry = buildLinkResolverRegistry({
       xiaohongshuSpiderEndpoint: "http://127.0.0.1:18061/api/xhs/note",

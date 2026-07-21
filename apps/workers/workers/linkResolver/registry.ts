@@ -3,6 +3,7 @@ import type {
   LinkResolverProvider,
   LinkResolverResult,
 } from "./types";
+import { CoolapkProvider } from "./providers/coolapk";
 import { SpiderXhsProvider } from "./providers/spiderXhs";
 import { XiaohongshuMcpProvider } from "./providers/xiaohongshuMcp";
 
@@ -12,6 +13,7 @@ export interface LinkResolverRegistryOptions {
   xiaohongshuBackend?: XiaohongshuBackend;
   xiaohongshuSpiderEndpoint?: string;
   xiaohongshuMcpEndpoint?: string;
+  coolapkResolverEndpoint?: string;
 }
 
 class UnconfiguredXiaohongshuProvider implements LinkResolverProvider {
@@ -38,6 +40,33 @@ function isXiaohongshuHost(hostname: string): boolean {
     hostname.endsWith(".xiaohongshu.com") ||
     hostname === "xhslink.com" ||
     hostname.endsWith(".xhslink.com")
+  );
+}
+
+class UnconfiguredCoolapkProvider implements LinkResolverProvider {
+  id = "coolapk-unconfigured";
+  fallbackPolicy = "fail_fast" as const;
+
+  canResolve(url: URL): boolean {
+    return isCoolapkHost(url.hostname);
+  }
+
+  async resolve(_input: LinkResolverInput): Promise<LinkResolverResult> {
+    return {
+      status: "failure",
+      retryable: false,
+      reason:
+        "Coolapk resolver is not configured. Set COOLAPK_RESOLVER_ENDPOINT.",
+    };
+  }
+}
+
+function isCoolapkHost(hostname: string): boolean {
+  return (
+    hostname === "coolapk.com" ||
+    hostname.endsWith(".coolapk.com") ||
+    hostname === "coolmarket.com.cn" ||
+    hostname.endsWith(".coolmarket.com.cn")
   );
 }
 
@@ -68,7 +97,14 @@ export function buildLinkResolverRegistry(
     xiaohongshuProvider = new UnconfiguredXiaohongshuProvider();
   }
 
-  const providers: LinkResolverProvider[] = [xiaohongshuProvider];
+  const coolapkProvider = options.coolapkResolverEndpoint
+    ? new CoolapkProvider({ endpoint: options.coolapkResolverEndpoint })
+    : new UnconfiguredCoolapkProvider();
+
+  const providers: LinkResolverProvider[] = [
+    xiaohongshuProvider,
+    coolapkProvider,
+  ];
 
   return {
     selectProvider(rawUrl: string): LinkResolverProvider | null {
