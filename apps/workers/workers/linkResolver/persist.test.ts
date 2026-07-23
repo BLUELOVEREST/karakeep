@@ -1,4 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import fs from "fs";
+import os from "os";
+import path from "path";
 
 const mocks = vi.hoisted(() => {
   const txn = {
@@ -77,7 +80,13 @@ describe("persistResolvedLinkContent", () => {
     vi.clearAllMocks();
   });
 
-  it("stores a full page archive for resolved link html when full page archive is enabled", async () => {
+  it("stores a self-contained full page archive for resolved link html when full page archive is enabled", async () => {
+    const tempDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "karakeep-resolver-asset-"),
+    );
+    const localImagePath = path.join(tempDir, "image.png");
+    await fs.promises.writeFile(localImagePath, Buffer.from("image-bytes"));
+
     mocks.storeHtmlContent.mockResolvedValue({ result: "store_inline" });
     mocks.archiveWebpage.mockResolvedValue({
       assetId: "archive-new",
@@ -94,15 +103,25 @@ describe("persistResolvedLinkContent", () => {
       content: {
         title: "酷安标题",
         htmlContent:
-          '<article><p>正文</p><img src="/api/assets/image-1"></article>',
+          '<article><p>正文</p><img src="https://image.test/image.png"></article>',
         finalUrl: "https://www.coolapk.com/feed/1",
+        archivableAssets: [
+          {
+            kind: "image",
+            path: localImagePath,
+            originalUrl: "https://image.test/image.png",
+            fileName: "image.png",
+            mimeType: "image/png",
+            role: "cover",
+          },
+        ],
       },
       abortSignal: new AbortController().signal,
       runProxy: {},
     } as Parameters<typeof persistResolvedLinkContent>[0]);
 
     expect(mocks.archiveWebpage).toHaveBeenCalledWith(
-      '<article><p>正文</p><img src="http://karakeep.test/api/assets/image-1"></article>',
+      '<article><p>正文</p><img src="data:image/png;base64,aW1hZ2UtYnl0ZXM="></article>',
       "https://www.coolapk.com/feed/1",
       "user-1",
       "job-1",

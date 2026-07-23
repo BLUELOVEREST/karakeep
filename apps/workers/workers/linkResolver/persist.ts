@@ -75,6 +75,7 @@ async function importLocalImageAsset(asset: ResolvedLinkAsset, userId: string) {
   const assetPath = path.join("/tmp", `${assetId}${extension}`);
   await fs.promises.copyFile(sourcePath, assetPath);
   const stats = await fs.promises.stat(assetPath);
+  const fileBuffer = await fs.promises.readFile(assetPath);
   const quotaApproved = await QuotaService.checkStorageQuota(
     db,
     userId,
@@ -92,6 +93,7 @@ async function importLocalImageAsset(asset: ResolvedLinkAsset, userId: string) {
     assetId,
     contentType,
     size: stats.size,
+    dataUrl: `data:${contentType};base64,${fileBuffer.toString("base64")}`,
   };
 }
 
@@ -115,6 +117,7 @@ async function archiveResolvedImageAssets(args: {
     assetUrl: string;
     dbAsset: typeof assets.$inferInsert;
     role: ResolvedLinkAsset["role"];
+    dataUrl?: string;
   }[] = [];
 
   for (const asset of imageAssets) {
@@ -141,6 +144,7 @@ async function archiveResolvedImageAssets(args: {
       originalUrl,
       assetUrl: getAssetUrl(imported.assetId),
       role: asset.role,
+      dataUrl: "dataUrl" in imported ? imported.dataUrl : undefined,
       dbAsset: {
         id: imported.assetId,
         bookmarkId: args.bookmarkId,
@@ -281,8 +285,17 @@ export async function persistResolvedLinkContent(
   });
 
   if (htmlContent && serverConfig.crawler.fullPageArchive) {
+    const archiveHtmlContent = replaceArchivedAssetUrls(
+      htmlContent,
+      archivedImageAssets
+        .filter((asset) => asset.dataUrl)
+        .map((asset) => ({
+          originalUrl: asset.assetUrl,
+          assetUrl: asset.dataUrl!,
+        })),
+    );
     const archiveResult = await archiveWebpage(
-      absolutizeLocalAssetUrls(htmlContent),
+      absolutizeLocalAssetUrls(archiveHtmlContent ?? htmlContent),
       args.content.finalUrl ?? args.sourceUrl,
       args.userId,
       args.jobId,
