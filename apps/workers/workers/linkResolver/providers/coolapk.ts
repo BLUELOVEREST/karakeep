@@ -135,7 +135,28 @@ function dedupeDownloadedAssets(
   });
 }
 
-function buildMarkdownFromBlocks(
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function escapeHtmlAttribute(value: string): string {
+  return escapeHtml(value).replace(/"/g, "&quot;");
+}
+
+function buildParagraphs(text: string): string[] {
+  return text
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map(
+      (paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`,
+    );
+}
+
+function buildHtmlFromBlocks(
   title: string | null,
   blocks: unknown,
 ): string | null {
@@ -143,9 +164,9 @@ function buildMarkdownFromBlocks(
     return null;
   }
 
-  const markdownBlocks: string[] = [];
+  const htmlBlocks: string[] = [];
   if (title) {
-    markdownBlocks.push(`# ${title}`);
+    htmlBlocks.push(`<h1>${escapeHtml(title)}</h1>`);
   }
 
   for (const block of blocks) {
@@ -156,36 +177,42 @@ function buildMarkdownFromBlocks(
     if (record.type === "text") {
       const text = asString(record.text);
       if (text) {
-        markdownBlocks.push(text);
+        htmlBlocks.push(...buildParagraphs(text));
       }
     } else if (record.type === "image") {
       const url = asString(record.url);
       if (url) {
         const description = asString(record.description) ?? "image";
-        markdownBlocks.push(`![${description}](${url})`);
+        htmlBlocks.push(
+          `<figure><img src="${escapeHtmlAttribute(url)}" alt="${escapeHtmlAttribute(description)}">${description ? `<figcaption>${escapeHtml(description)}</figcaption>` : ""}</figure>`,
+        );
       }
     }
   }
 
-  return markdownBlocks.join("\n\n") || null;
+  return htmlBlocks.length > 0
+    ? `<article>${htmlBlocks.join("")}</article>`
+    : null;
 }
 
-function buildFallbackMarkdown(
+function buildFallbackHtml(
   title: string | null,
   message: string | null,
   images: string[],
 ): string | null {
   const blocks: string[] = [];
   if (title) {
-    blocks.push(`# ${title}`);
+    blocks.push(`<h1>${escapeHtml(title)}</h1>`);
   }
   if (message) {
-    blocks.push(message);
+    blocks.push(...buildParagraphs(message));
   }
   images.forEach((image, index) => {
-    blocks.push(`![image ${index + 1}](${image})`);
+    blocks.push(
+      `<figure><img src="${escapeHtmlAttribute(image)}" alt="image ${index + 1}"></figure>`,
+    );
   });
-  return blocks.join("\n\n") || null;
+  return blocks.length > 0 ? `<article>${blocks.join("")}</article>` : null;
 }
 
 export class CoolapkProvider implements LinkResolverProvider {
@@ -258,8 +285,8 @@ export class CoolapkProvider implements LinkResolverProvider {
       ...extractDownloadedBlockAssets(feed),
     ]);
     const htmlContent =
-      buildMarkdownFromBlocks(title, feed.blocks) ??
-      buildFallbackMarkdown(title, message, fallbackImages);
+      buildHtmlFromBlocks(title, feed.blocks) ??
+      buildFallbackHtml(title, message, fallbackImages);
     const remoteAssets = [
       ...new Set([...blockImageUrls, ...fallbackImages]),
     ].map((url, index) => ({

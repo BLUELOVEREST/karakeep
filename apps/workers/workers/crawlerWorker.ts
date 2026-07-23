@@ -414,9 +414,11 @@ async function runCrawler(
         bookmarkId,
         userId,
         jobId,
+        sourceUrl: url,
         content: resolved.content,
         oldContentAssetId,
         oldImageAssetId,
+        oldFullPageArchiveAssetId,
         abortSignal: job.abortSignal,
         runProxy,
       });

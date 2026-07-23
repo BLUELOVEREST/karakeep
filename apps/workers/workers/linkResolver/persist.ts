@@ -13,9 +13,11 @@ import {
   saveAssetFromFile,
   silentDeleteAsset,
 } from "@karakeep/shared/assetdb";
+import serverConfig from "@karakeep/shared/config";
 import { getAssetUrl } from "@karakeep/shared/utils/assetUtils";
 
 import {
+  archiveWebpage,
   downloadAndStoreImage,
   storeHtmlContent,
 } from "../crawler/assetStorage";
@@ -27,9 +29,11 @@ export interface PersistResolvedLinkContentArgs {
   bookmarkId: string;
   userId: string;
   jobId: string;
+  sourceUrl: string;
   content: ResolvedLinkContent;
   oldContentAssetId?: string;
   oldImageAssetId?: string;
+  oldFullPageArchiveAssetId?: string;
   abortSignal: AbortSignal;
   runProxy: RunProxyConfig;
 }
@@ -49,6 +53,14 @@ function normalizeImageContentType(contentType: string | null | undefined) {
   return contentType && IMAGE_ASSET_TYPES.has(contentType)
     ? contentType
     : ASSET_TYPES.IMAGE_JPEG;
+}
+
+function absolutizeLocalAssetUrls(htmlContent: string) {
+  return htmlContent.replace(
+    /\b(src|href)=(["'])(\/api\/assets\/[^"']+)\2/g,
+    (_match, attr: string, quote: string, assetUrl: string) =>
+      `${attr}=${quote}${new URL(assetUrl, serverConfig.publicUrl).toString()}${quote}`,
+  );
 }
 
 async function importLocalImageAsset(asset: ResolvedLinkAsset, userId: string) {
@@ -267,6 +279,40 @@ export async function persistResolvedLinkContent(
       await txn.insert(assets).values(contentAssets);
     }
   });
+
+  if (htmlContent && serverConfig.crawler.fullPageArchive) {
+    const archiveResult = await archiveWebpage(
+      absolutizeLocalAssetUrls(htmlContent),
+      args.content.finalUrl ?? args.sourceUrl,
+      args.userId,
+      args.jobId,
+      args.abortSignal,
+      args.runProxy,
+    );
+
+    if (archiveResult) {
+      await db.transaction(async (txn) => {
+        await updateAsset(
+          args.oldFullPageArchiveAssetId,
+          {
+            id: archiveResult.assetId,
+            bookmarkId: args.bookmarkId,
+            userId: args.userId,
+            assetType: AssetTypes.LINK_FULL_PAGE_ARCHIVE,
+            contentType: archiveResult.contentType,
+            size: archiveResult.size,
+            fileName: null,
+          },
+          txn,
+        );
+      });
+      if (args.oldFullPageArchiveAssetId) {
+        assetDeletionTasks.push(
+          silentDeleteAsset(args.userId, args.oldFullPageArchiveAssetId),
+        );
+      }
+    }
+  }
 
   await Promise.all(assetDeletionTasks);
 }

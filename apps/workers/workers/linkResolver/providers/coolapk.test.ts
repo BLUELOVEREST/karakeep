@@ -7,7 +7,7 @@ describe("CoolapkProvider", () => {
     vi.unstubAllGlobals();
   });
 
-  it("calls the Coolapk resolver service and preserves ordered blocks as markdown", async () => {
+  it("calls the Coolapk resolver service and preserves ordered blocks as reader html", async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({
@@ -71,7 +71,7 @@ describe("CoolapkProvider", () => {
         author: "wherewhere",
         imageUrl: "https://example.test/a.jpg",
         htmlContent:
-          "# 酷安标题\n\n第一段\n\n![图一](https://example.test/a.jpg)\n\n第二段",
+          '<article><h1>酷安标题</h1><p>第一段</p><figure><img src="https://example.test/a.jpg" alt="图一"><figcaption>图一</figcaption></figure><p>第二段</p></article>',
         archivableAssets: [
           {
             kind: "image",
@@ -132,7 +132,8 @@ describe("CoolapkProvider", () => {
         description: "只有正文",
         author: "alice",
         imageUrl: "https://example.test/one.jpg",
-        htmlContent: "只有正文\n\n![image 1](https://example.test/one.jpg)",
+        htmlContent:
+          '<article><p>只有正文</p><figure><img src="https://example.test/one.jpg" alt="image 1"></figure></article>',
         archivableAssets: [
           {
             kind: "image",
