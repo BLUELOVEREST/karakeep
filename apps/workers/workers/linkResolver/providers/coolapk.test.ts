@@ -147,6 +147,118 @@ describe("CoolapkProvider", () => {
     });
   });
 
+  it("normalizes relative share urls against the input URL", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            msg: "success",
+            feed: {
+              title: "相对链接",
+              message: "正文",
+              author: { username: "alice" },
+              images: [],
+              blocks: [],
+              share_url: "/feed/71896052",
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const provider = new CoolapkProvider({
+      endpoint: "http://127.0.0.1:18062/api/coolapk/feed",
+    });
+
+    const result = await provider.resolve({
+      url: "https://www.coolapk.com/feed/71896052",
+      jobId: "job-1",
+      userId: "user-1",
+      bookmarkId: "bookmark-1",
+      abortSignal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({
+      status: "success",
+      content: {
+        finalUrl: "https://www.coolapk.com/feed/71896052",
+      },
+    });
+  });
+
+  it("uses resolver-downloaded local image files when available", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            msg: "success",
+            feed: {
+              title: "本地图片",
+              message: "正文",
+              author: { username: "alice" },
+              images: ["https://image.coolapk.com/a.jpg"],
+              blocks: [
+                { type: "text", text: "正文" },
+                {
+                  type: "image",
+                  url: "https://image.coolapk.com/a.jpg",
+                  path: "/downloads/coolapk/1/a.jpg",
+                  file_name: "a.jpg",
+                  mime_type: "image/jpeg",
+                },
+              ],
+              assets: [
+                {
+                  type: "image",
+                  url: "https://image.coolapk.com/a.jpg",
+                  path: "/downloads/coolapk/1/a.jpg",
+                  file_name: "a.jpg",
+                  mime_type: "image/jpeg",
+                  role: "cover",
+                },
+              ],
+              share_url: "https://www.coolapk.com/feed/1",
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const provider = new CoolapkProvider({
+      endpoint: "http://127.0.0.1:18062/api/coolapk/feed",
+    });
+
+    const result = await provider.resolve({
+      url: "https://www.coolapk.com/feed/1",
+      jobId: "job-1",
+      userId: "user-1",
+      bookmarkId: "bookmark-1",
+      abortSignal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({
+      status: "success",
+      content: {
+        archivableAssets: [
+          {
+            kind: "image",
+            path: "/downloads/coolapk/1/a.jpg",
+            originalUrl: "https://image.coolapk.com/a.jpg",
+            fileName: "a.jpg",
+            mimeType: "image/jpeg",
+            role: "cover",
+          },
+        ],
+      },
+    });
+  });
+
   it("returns a non-retryable failure when the Coolapk resolver reports failure", async () => {
     vi.stubGlobal(
       "fetch",

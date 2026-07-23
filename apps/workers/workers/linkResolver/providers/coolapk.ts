@@ -27,6 +27,18 @@ function asTimestampDate(value: unknown): Date | null {
   return new Date(value * 1000);
 }
 
+function normalizeFinalUrl(rawUrl: string | null, fallbackUrl: string): string {
+  if (!rawUrl) {
+    return fallbackUrl;
+  }
+
+  try {
+    return new URL(rawUrl, fallbackUrl).toString();
+  } catch {
+    return fallbackUrl;
+  }
+}
+
 function extractImages(feed: UnknownRecord): string[] {
   const images = feed.images;
   if (!Array.isArray(images)) {
@@ -46,6 +58,81 @@ function extractBlockImageUrls(feed: UnknownRecord): string[] {
   return blocks
     .map((block) => asString(asRecord(block)?.url))
     .filter((url): url is string => !!url?.startsWith("http"));
+}
+
+function extractDownloadedAssets(feed: UnknownRecord) {
+  const assets = feed.assets;
+  if (!Array.isArray(assets)) {
+    return [];
+  }
+
+  return assets.flatMap((asset, index) => {
+    const record = asRecord(asset);
+    if (!record) {
+      return [];
+    }
+    const originalUrl = asString(record.url) ?? asString(record.original_url);
+    const localPath = asString(record.path) ?? asString(record.local_path);
+    if (!originalUrl?.startsWith("http") || !localPath) {
+      return [];
+    }
+    return [
+      {
+        kind: "image" as const,
+        path: localPath,
+        originalUrl,
+        fileName: asString(record.file_name) ?? asString(record.fileName),
+        mimeType: asString(record.mime_type) ?? asString(record.mimeType),
+        role:
+          record.role === "cover" || index === 0
+            ? ("cover" as const)
+            : ("content" as const),
+      },
+    ];
+  });
+}
+
+function extractDownloadedBlockAssets(feed: UnknownRecord) {
+  const blocks = feed.blocks;
+  if (!Array.isArray(blocks)) {
+    return [];
+  }
+
+  return blocks.flatMap((block, index) => {
+    const record = asRecord(block);
+    if (!record || record.type !== "image") {
+      return [];
+    }
+    const originalUrl = asString(record.url);
+    const localPath = asString(record.path) ?? asString(record.local_path);
+    if (!originalUrl?.startsWith("http") || !localPath) {
+      return [];
+    }
+    return [
+      {
+        kind: "image" as const,
+        path: localPath,
+        originalUrl,
+        fileName: asString(record.file_name) ?? asString(record.fileName),
+        mimeType: asString(record.mime_type) ?? asString(record.mimeType),
+        role: index === 0 ? ("cover" as const) : ("content" as const),
+      },
+    ];
+  });
+}
+
+function dedupeDownloadedAssets(
+  assets: ReturnType<typeof extractDownloadedAssets>,
+) {
+  const seen = new Set<string>();
+  return assets.filter((asset) => {
+    const key = `${asset.originalUrl}:${asset.path}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
 }
 
 function buildMarkdownFromBlocks(
@@ -166,9 +253,21 @@ export class CoolapkProvider implements LinkResolverProvider {
     const author = asString(asRecord(feed.author)?.username);
     const blockImageUrls = extractBlockImageUrls(feed);
     const fallbackImages = extractImages(feed);
+    const downloadedAssets = dedupeDownloadedAssets([
+      ...extractDownloadedAssets(feed),
+      ...extractDownloadedBlockAssets(feed),
+    ]);
     const htmlContent =
       buildMarkdownFromBlocks(title, feed.blocks) ??
       buildFallbackMarkdown(title, message, fallbackImages);
+    const remoteAssets = [
+      ...new Set([...blockImageUrls, ...fallbackImages]),
+    ].map((url, index) => ({
+      kind: "image" as const,
+      url,
+      originalUrl: url,
+      role: index === 0 ? ("cover" as const) : ("content" as const),
+    }));
 
     return {
       status: "success",
@@ -178,15 +277,9 @@ export class CoolapkProvider implements LinkResolverProvider {
         author,
         imageUrl: blockImageUrls[0] ?? fallbackImages[0] ?? null,
         htmlContent,
-        archivableAssets: [
-          ...new Set([...blockImageUrls, ...fallbackImages]),
-        ].map((url, index) => ({
-          kind: "image" as const,
-          url,
-          originalUrl: url,
-          role: index === 0 ? ("cover" as const) : ("content" as const),
-        })),
-        finalUrl: asString(feed.share_url) ?? input.url,
+        archivableAssets:
+          downloadedAssets.length > 0 ? downloadedAssets : remoteAssets,
+        finalUrl: normalizeFinalUrl(asString(feed.share_url), input.url),
         datePublished: asTimestampDate(feed.created_at),
       },
     };

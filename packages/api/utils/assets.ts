@@ -9,6 +9,14 @@ import {
 
 import { toWebReadableStream } from "./upload";
 
+export function getServedAssetContentType(contentType: string) {
+  if (contentType.toLowerCase() === "text/html") {
+    return "text/html; charset=utf-8";
+  }
+
+  return contentType;
+}
+
 export async function serveAsset(c: Context, assetId: string, userId: string) {
   const [metadata, size] = await Promise.all([
     readAssetMetadata({
@@ -23,7 +31,7 @@ export async function serveAsset(c: Context, assetId: string, userId: string) {
   ]);
 
   // Default Headers
-  c.header("Content-type", metadata.contentType);
+  c.header("Content-type", getServedAssetContentType(metadata.contentType));
   c.header("X-Content-Type-Options", "nosniff");
   c.header("Cache-Control", "private, max-age=31536000, immutable");
   c.header(
