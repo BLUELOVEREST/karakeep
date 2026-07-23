@@ -1,7 +1,18 @@
 ################# Monolith Builder ##############
 FROM rust:1-bookworm AS monolith_builder
 
-RUN apt-get update \
+ARG APT_MIRROR
+ARG APT_SECURITY_MIRROR
+
+RUN if [ -n "${APT_MIRROR}" ]; then \
+        SECURITY_MIRROR="${APT_SECURITY_MIRROR:-${APT_MIRROR}-security}" \
+        && sed -i \
+            -e "s|http://deb.debian.org/debian-security|${SECURITY_MIRROR}|g" \
+            -e "s|http://security.debian.org/debian-security|${SECURITY_MIRROR}|g" \
+            -e "s|http://deb.debian.org/debian|${APT_MIRROR}|g" \
+            /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; \
+    fi \
+    && apt-get update \
     && apt-get install --no-install-recommends -y \
         libssl-dev \
         pkg-config \
@@ -11,6 +22,10 @@ RUN apt-get update \
 ################# Base Builder ##############
 FROM node:24-slim AS base
 
+ARG APT_MIRROR
+ARG APT_SECURITY_MIRROR
+ARG NPM_CONFIG_REGISTRY
+
 WORKDIR /app
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
@@ -18,7 +33,15 @@ ENV PATH="$PNPM_HOME:$PATH"
 # Keep Corepack current enough to verify modern pnpm release signatures.
 RUN npm install -g corepack@latest && corepack enable pnpm
 
-RUN apt-get update \
+RUN if [ -n "${APT_MIRROR}" ]; then \
+        SECURITY_MIRROR="${APT_SECURITY_MIRROR:-${APT_MIRROR}-security}" \
+        && sed -i \
+            -e "s|http://deb.debian.org/debian-security|${SECURITY_MIRROR}|g" \
+            -e "s|http://security.debian.org/debian-security|${SECURITY_MIRROR}|g" \
+            -e "s|http://deb.debian.org/debian|${APT_MIRROR}|g" \
+            /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; \
+    fi \
+    && apt-get update \
     && apt-get install --no-install-recommends -y \
         make \
         g++ \
@@ -50,18 +73,22 @@ COPY ./patches ./patches
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN pnpm install --frozen-lockfile
+RUN if [ -n "${NPM_CONFIG_REGISTRY}" ]; then \
+        npm config set registry "${NPM_CONFIG_REGISTRY}" \
+        && pnpm config set registry "${NPM_CONFIG_REGISTRY}"; \
+    fi \
+    && pnpm install --frozen-lockfile
 
 COPY . .
 
 # Build the db migration script
 RUN cd packages/db && \
-    pnpm exec ncc build migrate.ts -o /db_migrations && \
+    pnpm --config.verify-deps-before-run=false exec ncc build migrate.ts -o /db_migrations && \
     cp -R drizzle /db_migrations
 
 
 # Compile the web app
-RUN (cd apps/web && pnpm exec next build --experimental-build-mode compile)
+RUN (cd apps/web && pnpm --config.verify-deps-before-run=false exec next build --experimental-build-mode compile)
 
 # Build the worker code
 RUN (cd apps/workers && pnpm --config.verify-deps-before-run=false build)
@@ -79,6 +106,8 @@ FROM node:24-slim AS aio_builder
 LABEL org.opencontainers.image.source="https://github.com/karakeep-app/karakeep"
 WORKDIR /app
 
+ARG APT_MIRROR
+ARG APT_SECURITY_MIRROR
 ARG SERVER_VERSION=nightly
 ENV SERVER_VERSION=${SERVER_VERSION}
 
@@ -93,7 +122,15 @@ ARG S6_OVERLAY_VERSION=3.2.1.0
 ARG TARGETARCH
 
 # Install wget and xz-utils needed for s6-overlay
-RUN apt-get update \
+RUN if [ -n "${APT_MIRROR}" ]; then \
+        SECURITY_MIRROR="${APT_SECURITY_MIRROR:-${APT_MIRROR}-security}" \
+        && sed -i \
+            -e "s|http://deb.debian.org/debian-security|${SECURITY_MIRROR}|g" \
+            -e "s|http://security.debian.org/debian-security|${SECURITY_MIRROR}|g" \
+            -e "s|http://deb.debian.org/debian|${APT_MIRROR}|g" \
+            /etc/apt/sources.list /etc/apt/sources.list.d/*.sources 2>/dev/null || true; \
+    fi \
+    && apt-get update \
     && apt-get install --no-install-recommends -y \
         ca-certificates \
         wget \
