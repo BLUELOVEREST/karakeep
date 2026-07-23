@@ -146,13 +146,61 @@ function escapeHtmlAttribute(value: string): string {
   return escapeHtml(value).replace(/"/g, "&quot;");
 }
 
+function readEncodedAnchorAttribute(
+  attributes: string,
+  name: "class" | "href" | "rel" | "target" | "title",
+) {
+  const match = attributes.match(new RegExp(`\\s${name}=(["'])(.*?)\\1`, "i"));
+  return match?.[2] ?? null;
+}
+
+function restoreCoolapkInlineMarkup(value: string): string {
+  return value
+    .replace(/&amp;lt;!--break--&amp;gt;/g, "")
+    .replace(/&lt;!--break--&gt;/g, "")
+    .replace(
+      /&amp;lt;a\b([\s\S]*?)&amp;gt;([\s\S]*?)&amp;lt;\/a&amp;gt;/gi,
+      (_match, rawAttributes: string, rawText: string) => {
+        const href = readEncodedAnchorAttribute(rawAttributes, "href");
+        if (!href) {
+          return rawText;
+        }
+
+        let parsedHref: URL;
+        try {
+          parsedHref = new URL(href);
+        } catch {
+          return rawText;
+        }
+        if (!["http:", "https:"].includes(parsedHref.protocol)) {
+          return rawText;
+        }
+
+        const className = readEncodedAnchorAttribute(rawAttributes, "class");
+        const title = readEncodedAnchorAttribute(rawAttributes, "title");
+        const target = readEncodedAnchorAttribute(rawAttributes, "target");
+        const rel = readEncodedAnchorAttribute(rawAttributes, "rel");
+        const attributes = [
+          className ? `class="${escapeHtmlAttribute(className)}"` : null,
+          `href="${escapeHtmlAttribute(parsedHref.toString())}"`,
+          title ? `title="${escapeHtmlAttribute(title)}"` : null,
+          target === "_blank" ? `target="_blank"` : null,
+          rel ? `rel="${escapeHtmlAttribute(rel)}"` : null,
+        ].filter(Boolean);
+
+        return `<a ${attributes.join(" ")}>${rawText}</a>`;
+      },
+    );
+}
+
 function buildParagraphs(text: string): string[] {
   return text
     .split(/\n{2,}/)
     .map((paragraph) => paragraph.trim())
     .filter(Boolean)
     .map(
-      (paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`,
+      (paragraph) =>
+        `<p>${restoreCoolapkInlineMarkup(escapeHtml(paragraph)).replace(/\n/g, "<br>")}</p>`,
     );
 }
 

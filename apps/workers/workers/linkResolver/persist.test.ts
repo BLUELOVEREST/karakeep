@@ -121,7 +121,7 @@ describe("persistResolvedLinkContent", () => {
     } as Parameters<typeof persistResolvedLinkContent>[0]);
 
     expect(mocks.archiveWebpage).toHaveBeenCalledWith(
-      '<article><p>正文</p><img src="data:image/png;base64,aW1hZ2UtYnl0ZXM="></article>',
+      '<!doctype html><html><head><meta charset="utf-8"><style>html{box-sizing:border-box}*,*:before,*:after{box-sizing:inherit}body{margin:0;padding:32px 18px;background:#fff;color:#111;font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}article{max-width:760px;margin:0 auto}img,video{display:block;max-width:100%;height:auto;margin:16px auto}figure{margin:24px 0}figcaption{margin-top:8px;color:#666;font-size:14px;text-align:center}pre,code{white-space:pre-wrap;word-break:break-word}a{color:#0969da}</style></head><body><article><p>正文</p><img src="data:image/png;base64,aW1hZ2UtYnl0ZXM="></article></body></html>',
       "https://www.coolapk.com/feed/1",
       "user-1",
       "job-1",

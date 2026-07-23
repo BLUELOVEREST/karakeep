@@ -92,6 +92,52 @@ describe("CoolapkProvider", () => {
     });
   });
 
+  it("preserves escaped links from Coolapk text blocks as clickable anchors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            msg: "success",
+            feed: {
+              title: "带链接正文",
+              message: "兼容正文",
+              blocks: [
+                {
+                  type: "text",
+                  text: 'TrickyStore下载地址：&lt;a class="feed-link-url" href="https://github.com/5ec1cff/TrickyStore" title="https://github.com/5ec1cff/TrickyStore" target="_blank" rel="nofollow"&gt;查看链接&lt;/a&gt;\nPlayIntegrityFix下载地址&lt;!--break--&gt;：&lt;a class="feed-link-url" href="https://github.com/KOWX712/PlayIntegrityFix" title="https://github.com/KOWX712/PlayIntegrityFix" target="_blank" rel="nofollow"&gt;查看链接&lt;/a&gt;',
+                },
+              ],
+              share_url: "https://www.coolapk.com/feed/1",
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const provider = new CoolapkProvider({
+      endpoint: "http://127.0.0.1:18062/api/coolapk/feed",
+    });
+
+    const result = await provider.resolve({
+      url: "https://www.coolapk.com/feed/1",
+      jobId: "job-1",
+      userId: "user-1",
+      bookmarkId: "bookmark-1",
+      abortSignal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({
+      status: "success",
+      content: {
+        htmlContent:
+          '<article><h1>带链接正文</h1><p>TrickyStore下载地址：<a class="feed-link-url" href="https://github.com/5ec1cff/TrickyStore" title="https://github.com/5ec1cff/TrickyStore" target="_blank" rel="nofollow">查看链接</a><br>PlayIntegrityFix下载地址：<a class="feed-link-url" href="https://github.com/KOWX712/PlayIntegrityFix" title="https://github.com/KOWX712/PlayIntegrityFix" target="_blank" rel="nofollow">查看链接</a></p></article>',
+      },
+    });
+  });
+
   it("falls back to message plus images when ordered blocks are absent", async () => {
     vi.stubGlobal(
       "fetch",

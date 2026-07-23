@@ -63,6 +63,16 @@ function absolutizeLocalAssetUrls(htmlContent: string) {
   );
 }
 
+function wrapResolvedArchiveHtml(htmlContent: string) {
+  if (/<html[\s>]/i.test(htmlContent)) {
+    return htmlContent;
+  }
+
+  const style =
+    'html{box-sizing:border-box}*,*:before,*:after{box-sizing:inherit}body{margin:0;padding:32px 18px;background:#fff;color:#111;font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}article{max-width:760px;margin:0 auto}img,video{display:block;max-width:100%;height:auto;margin:16px auto}figure{margin:24px 0}figcaption{margin-top:8px;color:#666;font-size:14px;text-align:center}pre,code{white-space:pre-wrap;word-break:break-word}a{color:#0969da}';
+  return `<!doctype html><html><head><meta charset="utf-8"><style>${style}</style></head><body>${htmlContent}</body></html>`;
+}
+
 async function importLocalImageAsset(asset: ResolvedLinkAsset, userId: string) {
   const sourcePath = asset.path;
   if (!sourcePath) {
@@ -295,7 +305,9 @@ export async function persistResolvedLinkContent(
         })),
     );
     const archiveResult = await archiveWebpage(
-      absolutizeLocalAssetUrls(archiveHtmlContent ?? htmlContent),
+      wrapResolvedArchiveHtml(
+        absolutizeLocalAssetUrls(archiveHtmlContent ?? htmlContent),
+      ),
       args.content.finalUrl ?? args.sourceUrl,
       args.userId,
       args.jobId,
