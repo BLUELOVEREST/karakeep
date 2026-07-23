@@ -22,15 +22,25 @@ import {
 } from "@karakeep/shared-server";
 import {
   ASSET_TYPES,
+  IMAGE_ASSET_TYPES,
   newAssetId,
   saveAssetFromFile,
   silentDeleteAsset,
+  VIDEO_ASSET_TYPES,
 } from "@karakeep/shared/assetdb";
 import serverConfig from "@karakeep/shared/config";
 import logger from "@karakeep/shared/logger";
 import { DequeuedJob, getQueueClient } from "@karakeep/shared/queueing";
 
 import { getBookmarkDetails, updateAsset } from "../workerUtils";
+import {
+  isDouyinUrl,
+  resolveDouyinVideoDownload,
+} from "./videoDownloader/douyin";
+import {
+  isXiaohongshuUrl,
+  resolveXiaohongshuMediaDownload,
+} from "./videoDownloader/xiaohongshu";
 
 const TMP_FOLDER = path.join(os.tmpdir(), "video_downloads");
 
@@ -100,6 +110,18 @@ function prepareYtDlpArguments(
   return ytDlpArguments;
 }
 
+function normalizeVideoContentType(contentType: string | null | undefined) {
+  return contentType && VIDEO_ASSET_TYPES.has(contentType)
+    ? contentType
+    : ASSET_TYPES.VIDEO_MP4;
+}
+
+function normalizeImageContentType(contentType: string | null | undefined) {
+  return contentType && IMAGE_ASSET_TYPES.has(contentType)
+    ? contentType
+    : ASSET_TYPES.IMAGE_JPEG;
+}
+
 async function runWorker(job: DequeuedJob<ZVideoRequest>) {
   const jobId = job.id;
   const { bookmarkId } = job.data;
@@ -108,6 +130,7 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
   const {
     url,
     userId,
+    imageAssetId: oldImageAssetId,
     videoAssetId: oldVideoAssetId,
   } = await getBookmarkDetails(bookmarkId);
 
@@ -118,74 +141,172 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
     return;
   }
 
-  const runProxy = selectRunProxies();
-  let normalizedUrl: string;
-  try {
-    const resolvedUrl = await resolveValidatedRedirectUrl(
-      url,
-      { signal: job.abortSignal },
-      runProxy,
-    );
-    normalizedUrl = resolvedUrl.toString();
-  } catch (error) {
-    logger.warn(
-      `[VideoCrawler][${jobId}] Skipping video download for "${url}": ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    );
-    return;
-  }
-
   const videoAssetId = newAssetId();
   let assetPath = `${TMP_FOLDER}/${videoAssetId}`;
+  let contentType: string = ASSET_TYPES.VIDEO_MP4;
   await fs.promises.mkdir(TMP_FOLDER, { recursive: true });
 
-  const proxy = getProxyAgent(normalizedUrl, runProxy);
-  const ytDlpArguments = prepareYtDlpArguments(
-    normalizedUrl,
-    proxy?.proxy.toString(),
-    assetPath,
-  );
+  const douyinResolverEndpoint = serverConfig.crawler.douyinResolverEndpoint;
+  const xiaohongshuDownloadEndpoint =
+    serverConfig.crawler.xiaohongshuSpiderDownloadEndpoint;
+  if (xiaohongshuDownloadEndpoint && isXiaohongshuUrl(url)) {
+    const resolved = await resolveXiaohongshuMediaDownload({
+      endpoint: xiaohongshuDownloadEndpoint,
+      url,
+      abortSignal: job.abortSignal,
+    });
 
-  try {
+    if (resolved.status === "failure") {
+      logger.warn(
+        `[VideoCrawler][${jobId}] Skipping Xiaohongshu media download for "${url}": ${resolved.reason}`,
+      );
+      return;
+    }
+
+    if (resolved.coverFile) {
+      const imageAssetId = newAssetId();
+      const imageContentType = normalizeImageContentType(
+        resolved.coverFile.mimeType,
+      );
+      const sourceExtension = path.extname(resolved.coverFile.path) || ".jpg";
+      const imageAssetPath = `${TMP_FOLDER}/${imageAssetId}${sourceExtension}`;
+      await fs.promises.copyFile(resolved.coverFile.path, imageAssetPath);
+      const imageStats = await fs.promises.stat(imageAssetPath);
+      const quotaApproved = await QuotaService.checkStorageQuota(
+        db,
+        userId,
+        imageStats.size,
+      );
+      await saveAssetFromFile({
+        userId,
+        assetId: imageAssetId,
+        assetPath: imageAssetPath,
+        metadata: { contentType: imageContentType },
+        quotaApproved,
+      });
+      await db.transaction(async (txn) => {
+        await updateAsset(
+          oldImageAssetId,
+          {
+            id: imageAssetId,
+            bookmarkId,
+            userId,
+            assetType: AssetTypes.LINK_BANNER_IMAGE,
+            contentType: imageContentType,
+            size: imageStats.size,
+          },
+          txn,
+        );
+      });
+      await silentDeleteAsset(userId, oldImageAssetId);
+      logger.info(
+        `[VideoCrawler][${jobId}] Imported Xiaohongshu cover file from "${resolved.coverFile.path}"`,
+      );
+    }
+
+    if (!resolved.videoFile) {
+      logger.info(
+        `[VideoCrawler][${jobId}] Spider_XHS did not return a video file for "${url}". Skipping video storage.`,
+      );
+      return;
+    }
+
+    contentType = normalizeVideoContentType(resolved.videoFile.mimeType);
+    const sourceExtension = path.extname(resolved.videoFile.path) || ".mp4";
+    assetPath = `${TMP_FOLDER}/${videoAssetId}${sourceExtension}`;
+    await fs.promises.copyFile(resolved.videoFile.path, assetPath);
     logger.info(
-      `[VideoCrawler][${jobId}] Attempting to download a file from "${normalizedUrl}" to "${assetPath}" using the following arguments: "${ytDlpArguments}"`,
+      `[VideoCrawler][${jobId}] Imported Xiaohongshu video file from "${resolved.videoFile.path}" to "${assetPath}"`,
+    );
+  } else if (douyinResolverEndpoint && isDouyinUrl(url)) {
+    const resolved = await resolveDouyinVideoDownload({
+      endpoint: douyinResolverEndpoint,
+      url,
+      abortSignal: job.abortSignal,
+      pollIntervalMs: 2000,
+      timeoutMs: serverConfig.crawler.downloadVideoTimeout * 1000,
+    });
+
+    if (resolved.status === "failure") {
+      logger.warn(
+        `[VideoCrawler][${jobId}] Skipping Douyin video download for "${url}": ${resolved.reason}`,
+      );
+      return;
+    }
+
+    contentType = normalizeVideoContentType(resolved.file.mimeType);
+    const sourceExtension = path.extname(resolved.file.path) || ".mp4";
+    assetPath = `${TMP_FOLDER}/${videoAssetId}${sourceExtension}`;
+    await fs.promises.copyFile(resolved.file.path, assetPath);
+    logger.info(
+      `[VideoCrawler][${jobId}] Imported Douyin video file from "${resolved.file.path}" to "${assetPath}"`,
+    );
+  } else {
+    const runProxy = selectRunProxies();
+    let normalizedUrl: string;
+    try {
+      const resolvedUrl = await resolveValidatedRedirectUrl(
+        url,
+        { signal: job.abortSignal },
+        runProxy,
+      );
+      normalizedUrl = resolvedUrl.toString();
+    } catch (error) {
+      logger.warn(
+        `[VideoCrawler][${jobId}] Skipping video download for "${url}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return;
+    }
+
+    const proxy = getProxyAgent(normalizedUrl, runProxy);
+    const ytDlpArguments = prepareYtDlpArguments(
+      normalizedUrl,
+      proxy?.proxy.toString(),
+      assetPath,
     );
 
-    await execa("yt-dlp", ytDlpArguments, {
-      cancelSignal: job.abortSignal,
-    });
-    const downloadPath = await findAssetFile(videoAssetId);
-    if (!downloadPath) {
+    try {
       logger.info(
-        "[VideoCrawler][${jobId}] yt-dlp didn't download anything. Skipping ...",
+        `[VideoCrawler][${jobId}] Attempting to download a file from "${normalizedUrl}" to "${assetPath}" using the following arguments: "${ytDlpArguments}"`,
       );
+
+      await execa("yt-dlp", ytDlpArguments, {
+        cancelSignal: job.abortSignal,
+      });
+      const downloadPath = await findAssetFile(videoAssetId);
+      if (!downloadPath) {
+        logger.info(
+          "[VideoCrawler][${jobId}] yt-dlp didn't download anything. Skipping ...",
+        );
+        return;
+      }
+      assetPath = downloadPath;
+    } catch (e) {
+      const err = e as Error;
+      if (
+        err.message.includes("ERROR: Unsupported URL:") ||
+        err.message.includes("No media found")
+      ) {
+        logger.info(
+          `[VideoCrawler][${jobId}] Skipping video download from "${normalizedUrl}", because it's not one of the supported yt-dlp URLs`,
+        );
+        return;
+      }
+      const genericError = `[VideoCrawler][${jobId}] Failed to download a file from "${normalizedUrl}" to "${assetPath}"`;
+      if ("stderr" in err) {
+        logger.error(`${genericError}: ${err.stderr}`);
+      } else {
+        logger.error(genericError);
+      }
+      await deleteLeftOverAssetFile(jobId, videoAssetId);
       return;
     }
-    assetPath = downloadPath;
-  } catch (e) {
-    const err = e as Error;
-    if (
-      err.message.includes("ERROR: Unsupported URL:") ||
-      err.message.includes("No media found")
-    ) {
-      logger.info(
-        `[VideoCrawler][${jobId}] Skipping video download from "${normalizedUrl}", because it's not one of the supported yt-dlp URLs`,
-      );
-      return;
-    }
-    const genericError = `[VideoCrawler][${jobId}] Failed to download a file from "${normalizedUrl}" to "${assetPath}"`;
-    if ("stderr" in err) {
-      logger.error(`${genericError}: ${err.stderr}`);
-    } else {
-      logger.error(genericError);
-    }
-    await deleteLeftOverAssetFile(jobId, videoAssetId);
-    return;
   }
 
   logger.info(
-    `[VideoCrawler][${jobId}] Finished downloading a file from "${normalizedUrl}" to "${assetPath}"`,
+    `[VideoCrawler][${jobId}] Finished video import to "${assetPath}"`,
   );
 
   // Get file size and check quota before saving
@@ -203,7 +324,7 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
       userId,
       assetId: videoAssetId,
       assetPath,
-      metadata: { contentType: ASSET_TYPES.VIDEO_MP4 },
+      metadata: { contentType },
       quotaApproved,
     });
 
@@ -215,7 +336,7 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
           bookmarkId,
           userId,
           assetType: AssetTypes.LINK_VIDEO,
-          contentType: ASSET_TYPES.VIDEO_MP4,
+          contentType,
           size: fileSize,
         },
         txn,
@@ -224,7 +345,7 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
     await silentDeleteAsset(userId, oldVideoAssetId);
 
     logger.info(
-      `[VideoCrawler][${jobId}] Finished downloading video from "${normalizedUrl}" and adding it to the database`,
+      `[VideoCrawler][${jobId}] Finished downloading video from "${url}" and adding it to the database`,
     );
   } catch (error) {
     if (error instanceof StorageQuotaError) {

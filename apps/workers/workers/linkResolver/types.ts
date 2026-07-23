@@ -19,6 +19,17 @@ export interface ResolvedLinkContent {
   favicon?: string | null;
   htmlContent?: string | null;
   finalUrl?: string | null;
+  archivableAssets?: ResolvedLinkAsset[];
+}
+
+export interface ResolvedLinkAsset {
+  kind: "image";
+  url?: string | null;
+  path?: string | null;
+  originalUrl?: string | null;
+  fileName?: string | null;
+  mimeType?: string | null;
+  role?: "cover" | "content" | null;
 }
 
 export type LinkResolverResult =

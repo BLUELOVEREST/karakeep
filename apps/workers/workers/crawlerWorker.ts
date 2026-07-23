@@ -390,6 +390,10 @@ async function runCrawler(
     xiaohongshuSpiderEndpoint: serverConfig.crawler.xiaohongshuSpiderEndpoint,
     xiaohongshuMcpEndpoint: serverConfig.crawler.xiaohongshuMcpEndpoint,
     coolapkResolverEndpoint: serverConfig.crawler.coolapkResolverEndpoint,
+    smzdmResolverEndpoint: serverConfig.crawler.smzdmResolverEndpoint,
+    wechatArticleResolverEndpoint:
+      serverConfig.crawler.wechatArticleResolverEndpoint,
+    wechatArticleAuthKey: serverConfig.crawler.wechatArticleAuthKey,
   });
   const linkResolverProvider = linkResolverRegistry.selectProvider(url);
   if (linkResolverProvider) {

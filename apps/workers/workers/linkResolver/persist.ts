@@ -1,16 +1,27 @@
+import fs from "fs";
+import path from "path";
 import { eq } from "drizzle-orm";
 import { updateAsset } from "workerUtils";
 
 import { db } from "@karakeep/db";
-import { AssetTypes, bookmarkLinks } from "@karakeep/db/schema";
-import { ASSET_TYPES, silentDeleteAsset } from "@karakeep/shared/assetdb";
+import { assets, AssetTypes, bookmarkLinks } from "@karakeep/db/schema";
+import { QuotaService } from "@karakeep/shared-server";
+import {
+  ASSET_TYPES,
+  IMAGE_ASSET_TYPES,
+  newAssetId,
+  saveAssetFromFile,
+  silentDeleteAsset,
+} from "@karakeep/shared/assetdb";
+import { getAssetUrl } from "@karakeep/shared/utils/assetUtils";
 
 import {
   downloadAndStoreImage,
   storeHtmlContent,
 } from "../crawler/assetStorage";
+import { replaceArchivedAssetUrls } from "./mediaArchive";
 import type { RunProxyConfig } from "network";
-import type { ResolvedLinkContent } from "./types";
+import type { ResolvedLinkAsset, ResolvedLinkContent } from "./types";
 
 export interface PersistResolvedLinkContentArgs {
   bookmarkId: string;
@@ -34,18 +45,141 @@ function parseDate(value: Date | string | null | undefined): Date | null {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
+function normalizeImageContentType(contentType: string | null | undefined) {
+  return contentType && IMAGE_ASSET_TYPES.has(contentType)
+    ? contentType
+    : ASSET_TYPES.IMAGE_JPEG;
+}
+
+async function importLocalImageAsset(asset: ResolvedLinkAsset, userId: string) {
+  const sourcePath = asset.path;
+  if (!sourcePath) {
+    return null;
+  }
+
+  const assetId = newAssetId();
+  const contentType = normalizeImageContentType(asset.mimeType);
+  const extension = path.extname(sourcePath);
+  const assetPath = path.join("/tmp", `${assetId}${extension}`);
+  await fs.promises.copyFile(sourcePath, assetPath);
+  const stats = await fs.promises.stat(assetPath);
+  const quotaApproved = await QuotaService.checkStorageQuota(
+    db,
+    userId,
+    stats.size,
+  );
+  await saveAssetFromFile({
+    userId,
+    assetId,
+    assetPath,
+    metadata: { contentType, fileName: asset.fileName ?? undefined },
+    quotaApproved,
+  });
+  await fs.promises.rm(sourcePath, { force: true });
+  return {
+    assetId,
+    contentType,
+    size: stats.size,
+  };
+}
+
+async function archiveResolvedImageAssets(args: {
+  assets: ResolvedLinkAsset[] | undefined;
+  userId: string;
+  bookmarkId: string;
+  jobId: string;
+  abortSignal: AbortSignal;
+  runProxy: RunProxyConfig;
+}) {
+  const imageAssets =
+    args.assets?.filter(
+      (asset) =>
+        asset.kind === "image" &&
+        ((asset.url && asset.url.startsWith("http")) || asset.path),
+    ) ?? [];
+
+  const archivedAssets: {
+    originalUrl: string;
+    assetUrl: string;
+    dbAsset: typeof assets.$inferInsert;
+    role: ResolvedLinkAsset["role"];
+  }[] = [];
+
+  for (const asset of imageAssets) {
+    args.abortSignal.throwIfAborted();
+    const imported = asset.path
+      ? await importLocalImageAsset(asset, args.userId)
+      : await downloadAndStoreImage(
+          asset.url!,
+          args.userId,
+          args.jobId,
+          args.abortSignal,
+          args.runProxy,
+        );
+    if (!imported) {
+      continue;
+    }
+
+    const originalUrl = asset.originalUrl ?? asset.url;
+    if (!originalUrl) {
+      continue;
+    }
+
+    archivedAssets.push({
+      originalUrl,
+      assetUrl: getAssetUrl(imported.assetId),
+      role: asset.role,
+      dbAsset: {
+        id: imported.assetId,
+        bookmarkId: args.bookmarkId,
+        userId: args.userId,
+        assetType:
+          asset.role === "cover"
+            ? AssetTypes.LINK_BANNER_IMAGE
+            : AssetTypes.BOOKMARK_ASSET,
+        contentType: imported.contentType,
+        size: imported.size,
+        fileName: asset.fileName ?? null,
+      },
+    });
+  }
+
+  return archivedAssets;
+}
+
 export async function persistResolvedLinkContent(
   args: PersistResolvedLinkContentArgs,
 ) {
+  const archivedImageAssets = await archiveResolvedImageAssets({
+    assets: args.content.archivableAssets,
+    userId: args.userId,
+    bookmarkId: args.bookmarkId,
+    jobId: args.jobId,
+    abortSignal: args.abortSignal,
+    runProxy: args.runProxy,
+  });
+  const htmlContent = replaceArchivedAssetUrls(
+    args.content.htmlContent,
+    archivedImageAssets.map((asset) => ({
+      originalUrl: asset.originalUrl,
+      assetUrl: asset.assetUrl,
+    })),
+  );
+
   const htmlContentAssetInfo = await storeHtmlContent(
-    args.content.htmlContent ?? undefined,
+    htmlContent ?? undefined,
     args.userId,
     args.jobId,
   );
   args.abortSignal.throwIfAborted();
 
+  const archivedBannerAsset = archivedImageAssets.find(
+    (asset) => asset.dbAsset.assetType === AssetTypes.LINK_BANNER_IMAGE,
+  );
   const imageAssetInfo =
-    args.content.imageUrl && args.content.imageUrl.startsWith("http")
+    !archivedBannerAsset &&
+    args.content.imageUrl &&
+    args.content.imageUrl.startsWith("http")
       ? await downloadAndStoreImage(
           args.content.imageUrl,
           args.userId,
@@ -58,7 +192,7 @@ export async function persistResolvedLinkContent(
 
   const inlineHtmlContent =
     htmlContentAssetInfo.result === "store_inline"
-      ? (args.content.htmlContent ?? null)
+      ? (htmlContent ?? null)
       : null;
   const assetDeletionTasks: Promise<void>[] = [];
 
@@ -119,6 +253,18 @@ export async function persistResolvedLinkContent(
       assetDeletionTasks.push(
         silentDeleteAsset(args.userId, args.oldImageAssetId),
       );
+    } else if (archivedBannerAsset) {
+      await updateAsset(args.oldImageAssetId, archivedBannerAsset.dbAsset, txn);
+      assetDeletionTasks.push(
+        silentDeleteAsset(args.userId, args.oldImageAssetId),
+      );
+    }
+
+    const contentAssets = archivedImageAssets
+      .filter((asset) => asset !== archivedBannerAsset)
+      .map((asset) => asset.dbAsset);
+    if (contentAssets.length > 0) {
+      await txn.insert(assets).values(contentAssets);
     }
   });
 

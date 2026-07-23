@@ -21,7 +21,7 @@ function asString(value: unknown): string | null {
 }
 
 function extractImageUrls(note: UnknownRecord): string[] {
-  const imageList = note.image_list ?? note.images;
+  const imageList = note.images ?? note.image_list;
   if (!Array.isArray(imageList)) {
     return [];
   }
@@ -37,10 +37,23 @@ function extractImageUrls(note: UnknownRecord): string[] {
     .filter((url): url is string => !!url?.startsWith("http"));
 }
 
+function extractVideoUrls(note: UnknownRecord): string[] {
+  const videos = note.videos;
+  if (Array.isArray(videos)) {
+    return videos
+      .map((video) => asString(asRecord(video)?.url))
+      .filter((url): url is string => !!url?.startsWith("http"));
+  }
+
+  const legacyVideoUrl = asString(asRecord(note.video)?.url);
+  return legacyVideoUrl?.startsWith("http") ? [legacyVideoUrl] : [];
+}
+
 function buildMarkdown(
   title: string | null,
   description: string | null,
   imageUrls: string[],
+  videoUrls: string[],
 ) {
   const blocks: string[] = [];
   if (title) {
@@ -51,6 +64,9 @@ function buildMarkdown(
   }
   imageUrls.forEach((imageUrl, index) => {
     blocks.push(`![image ${index + 1}](${imageUrl})`);
+  });
+  videoUrls.forEach((videoUrl, index) => {
+    blocks.push(`[video ${index + 1}](${videoUrl})`);
   });
   return blocks.join("\n\n") || null;
 }
@@ -122,6 +138,8 @@ export class SpiderXhsProvider implements LinkResolverProvider {
       asString(note.content);
     const author = asString(asRecord(note.user)?.nickname);
     const imageUrls = extractImageUrls(note);
+    const videoUrls = extractVideoUrls(note);
+    const noteType = asString(note.type);
 
     return {
       status: "success",
@@ -129,8 +147,17 @@ export class SpiderXhsProvider implements LinkResolverProvider {
         title,
         description,
         author,
-        imageUrl: imageUrls[0] ?? null,
-        htmlContent: buildMarkdown(title, description, imageUrls),
+        imageUrl: null,
+        htmlContent: buildMarkdown(title, description, imageUrls, videoUrls),
+        archivableAssets:
+          noteType === "video"
+            ? []
+            : imageUrls.map((url, index) => ({
+                kind: "image" as const,
+                url,
+                originalUrl: url,
+                role: index === 0 ? ("cover" as const) : ("content" as const),
+              })),
         finalUrl: input.url,
       },
     };

@@ -65,6 +65,49 @@ describe("buildLinkResolverRegistry", () => {
     expect(provider?.fallbackPolicy).toBe("fail_fast");
   });
 
+  it("selects the SMZDM provider for article domains when configured", () => {
+    const registry = buildLinkResolverRegistry({
+      smzdmResolverEndpoint: "http://127.0.0.1:18063/api/smzdm/article",
+    });
+
+    const provider = registry.selectProvider(
+      "https://post.smzdm.com/p/ak8mxml9/",
+    );
+
+    expect(provider?.id).toBe("smzdm");
+  });
+
+  it("returns fail-fast for SMZDM article domains when the external resolver is not configured", () => {
+    const registry = buildLinkResolverRegistry({});
+
+    const provider = registry.selectProvider(
+      "https://post.m.smzdm.com/p/ak8mxml9/",
+    );
+
+    expect(provider?.id).toBe("smzdm-unconfigured");
+    expect(provider?.fallbackPolicy).toBe("fail_fast");
+  });
+
+  it("selects the WeChat article provider when configured", () => {
+    const registry = buildLinkResolverRegistry({
+      wechatArticleResolverEndpoint:
+        "http://127.0.0.1:3000/api/karakeep/v1/wechat/article",
+    });
+
+    const provider = registry.selectProvider("https://mp.weixin.qq.com/s/demo");
+
+    expect(provider?.id).toBe("wechat-article");
+  });
+
+  it("returns fail-fast for WeChat article domains when the external resolver is not configured", () => {
+    const registry = buildLinkResolverRegistry({});
+
+    const provider = registry.selectProvider("https://mp.weixin.qq.com/s/demo");
+
+    expect(provider?.id).toBe("wechat-article-unconfigured");
+    expect(provider?.fallbackPolicy).toBe("fail_fast");
+  });
+
   it("returns null for generic webpages", () => {
     const registry = buildLinkResolverRegistry({
       xiaohongshuSpiderEndpoint: "http://127.0.0.1:18061/api/xhs/note",

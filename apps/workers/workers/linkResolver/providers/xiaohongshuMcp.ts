@@ -209,6 +209,12 @@ export class XiaohongshuMcpProvider implements LinkResolverProvider {
         author,
         imageUrl: extractFirstImageUrl(note),
         htmlContent: buildMarkdown(title, description, imageUrls),
+        archivableAssets: imageUrls.map((url, index) => ({
+          kind: "image" as const,
+          url,
+          originalUrl: url,
+          role: index === 0 ? ("cover" as const) : ("content" as const),
+        })),
         finalUrl: input.url,
       },
     };

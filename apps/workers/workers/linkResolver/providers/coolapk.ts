@@ -178,6 +178,14 @@ export class CoolapkProvider implements LinkResolverProvider {
         author,
         imageUrl: blockImageUrls[0] ?? fallbackImages[0] ?? null,
         htmlContent,
+        archivableAssets: [
+          ...new Set([...blockImageUrls, ...fallbackImages]),
+        ].map((url, index) => ({
+          kind: "image" as const,
+          url,
+          originalUrl: url,
+          role: index === 0 ? ("cover" as const) : ("content" as const),
+        })),
         finalUrl: asString(feed.share_url) ?? input.url,
         datePublished: asTimestampDate(feed.created_at),
       },

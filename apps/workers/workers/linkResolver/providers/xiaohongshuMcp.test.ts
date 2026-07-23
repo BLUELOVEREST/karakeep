@@ -86,6 +86,14 @@ describe("XiaohongshuMcpProvider", () => {
         imageUrl: "https://sns-img.example.com/cover.jpg",
         htmlContent:
           "# 咖啡店记录\n\n今天发现一家不错的咖啡店\n\n![image 1](https://sns-img.example.com/cover.jpg)",
+        archivableAssets: [
+          {
+            kind: "image",
+            url: "https://sns-img.example.com/cover.jpg",
+            originalUrl: "https://sns-img.example.com/cover.jpg",
+            role: "cover",
+          },
+        ],
         finalUrl:
           "https://www.xiaohongshu.com/explore/65f123456789abcdef012345?xsec_token=ABCD",
       },

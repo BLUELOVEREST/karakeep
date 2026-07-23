@@ -72,6 +72,20 @@ describe("CoolapkProvider", () => {
         imageUrl: "https://example.test/a.jpg",
         htmlContent:
           "# 酷安标题\n\n第一段\n\n![图一](https://example.test/a.jpg)\n\n第二段",
+        archivableAssets: [
+          {
+            kind: "image",
+            url: "https://example.test/a.jpg",
+            originalUrl: "https://example.test/a.jpg",
+            role: "cover",
+          },
+          {
+            kind: "image",
+            url: "https://example.test/fallback.jpg",
+            originalUrl: "https://example.test/fallback.jpg",
+            role: "content",
+          },
+        ],
         finalUrl: "https://www.coolapk.com/feed/71896052",
         datePublished: new Date(1726069882 * 1000),
       },
@@ -119,6 +133,14 @@ describe("CoolapkProvider", () => {
         author: "alice",
         imageUrl: "https://example.test/one.jpg",
         htmlContent: "只有正文\n\n![image 1](https://example.test/one.jpg)",
+        archivableAssets: [
+          {
+            kind: "image",
+            url: "https://example.test/one.jpg",
+            originalUrl: "https://example.test/one.jpg",
+            role: "cover",
+          },
+        ],
         finalUrl: "https://www.coolapk.com/feed/1",
         datePublished: null,
       },
