@@ -55,6 +55,88 @@ function extractImageUrls(payload: UnknownRecord): string[] {
   return [...new Set(imageUrls)];
 }
 
+function extractDownloadedImageAssets(payload: UnknownRecord) {
+  const assets: {
+    kind: "image";
+    path: string;
+    originalUrl: string;
+    fileName?: string | null;
+    mimeType?: string | null;
+    role?: "cover" | "content" | null;
+  }[] = [];
+
+  const coverImage = asRecord(payload.coverImage);
+  if (coverImage) {
+    const coverAsset = downloadedAssetFromRecord(coverImage, "cover");
+    if (coverAsset) {
+      assets.push(coverAsset);
+    }
+  }
+
+  const images = payload.images;
+  if (Array.isArray(images)) {
+    for (const image of images) {
+      const record = asRecord(image);
+      if (!record) {
+        continue;
+      }
+      const asset = downloadedAssetFromRecord(record, "content");
+      if (asset) {
+        assets.push(asset);
+      }
+    }
+  }
+
+  const seen = new Set<string>();
+  return assets.filter((asset) => {
+    const key = `${asset.originalUrl}:${asset.path}`;
+    if (seen.has(key)) {
+      return false;
+    }
+    seen.add(key);
+    return true;
+  });
+}
+
+function downloadedAssetFromRecord(
+  record: UnknownRecord,
+  fallbackRole: "cover" | "content",
+) {
+  const originalUrl =
+    asString(record.url) ??
+    asString(record.originalUrl) ??
+    asString(record.original_url);
+  const localPath =
+    asString(record.path) ??
+    asString(record.localPath) ??
+    asString(record.local_path);
+  if (!originalUrl?.startsWith("http") || !localPath) {
+    return null;
+  }
+
+  const rawRole = asString(record.role);
+  const role =
+    rawRole === "cover" || rawRole === "content" ? rawRole : fallbackRole;
+  return {
+    kind: "image" as const,
+    path: localPath,
+    originalUrl,
+    fileName: asString(record.fileName) ?? asString(record.file_name),
+    mimeType: asString(record.mimeType) ?? asString(record.mime_type),
+    role,
+  };
+}
+
+function normalizeHtmlContent(htmlContent: string | null): string | null {
+  if (!htmlContent) {
+    return null;
+  }
+  if (/<(?:html|article)(?:\s|>)/i.test(htmlContent)) {
+    return htmlContent;
+  }
+  return `<article>${htmlContent}</article>`;
+}
+
 export class WechatArticleProvider implements LinkResolverProvider {
   id = "wechat-article";
   fallbackPolicy = "fail_fast" as const;
@@ -111,9 +193,11 @@ export class WechatArticleProvider implements LinkResolverProvider {
       };
     }
 
-    const htmlContent =
-      asString(payload.contentMarkdown) ?? asString(payload.contentHtml);
+    const htmlContent = normalizeHtmlContent(
+      asString(payload.contentHtml) ?? asString(payload.contentMarkdown),
+    );
     const imageUrls = extractImageUrls(payload);
+    const downloadedAssets = extractDownloadedImageAssets(payload);
 
     return {
       status: "success",
@@ -127,12 +211,15 @@ export class WechatArticleProvider implements LinkResolverProvider {
         publisher: asString(payload.accountName),
         imageUrl: imageUrls[0] ?? null,
         htmlContent,
-        archivableAssets: imageUrls.map((url, index) => ({
-          kind: "image" as const,
-          url,
-          originalUrl: url,
-          role: index === 0 ? ("cover" as const) : ("content" as const),
-        })),
+        archivableAssets:
+          downloadedAssets.length > 0
+            ? downloadedAssets
+            : imageUrls.map((url, index) => ({
+                kind: "image" as const,
+                url,
+                originalUrl: url,
+                role: index === 0 ? ("cover" as const) : ("content" as const),
+              })),
         finalUrl: asString(payload.finalUrl) ?? input.url,
         datePublished: asDate(payload.publishedAt),
       },

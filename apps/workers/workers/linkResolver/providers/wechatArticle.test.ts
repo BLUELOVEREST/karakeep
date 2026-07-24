@@ -65,8 +65,7 @@ describe("WechatArticleProvider", () => {
         author: "作者",
         publisher: "公众号",
         imageUrl: "https://mmbiz.qpic.cn/cover.jpg",
-        htmlContent:
-          "# 微信公众号标题\n\n正文\n\n![图1](https://mmbiz.qpic.cn/one.jpg)",
+        htmlContent: "<article>正文</article>",
         archivableAssets: [
           {
             kind: "image",
@@ -84,6 +83,83 @@ describe("WechatArticleProvider", () => {
         finalUrl: "https://mp.weixin.qq.com/s/demo",
         datePublished: new Date("2026-07-21T00:00:00.000Z"),
       },
+    });
+  });
+
+  it("prefers resolver HTML and downloaded local image assets", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          title: "微信公众号标题",
+          summary: "摘要",
+          contentMarkdown:
+            "# 微信公众号标题\n\n正文\n\n![图1](https://mmbiz.qpic.cn/one.jpg)",
+          contentHtml:
+            '<section><p>正文</p><img src="https://mmbiz.qpic.cn/one.jpg"></section>',
+          contentText: "正文",
+          coverImageUrl: "https://mmbiz.qpic.cn/cover.jpg",
+          coverImage: {
+            url: "https://mmbiz.qpic.cn/cover.jpg",
+            originalUrl: "https://mmbiz.qpic.cn/cover.jpg",
+            path: "/downloads/wechat/demo/cover.jpg",
+            fileName: "cover.jpg",
+            mimeType: "image/jpeg",
+          },
+          finalUrl: "https://mp.weixin.qq.com/s/demo",
+          images: [
+            {
+              url: "https://mmbiz.qpic.cn/one.jpg",
+              originalUrl: "https://mmbiz.qpic.cn/one.jpg",
+              path: "/downloads/wechat/demo/one.jpg",
+              fileName: "one.jpg",
+              mimeType: "image/jpeg",
+              index: 0,
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new WechatArticleProvider({
+      endpoint: "http://127.0.0.1:3000/api/karakeep/v1/wechat/article",
+    });
+
+    const result = await provider.resolve({
+      url: "https://mp.weixin.qq.com/s/demo",
+      jobId: "job-1",
+      userId: "user-1",
+      bookmarkId: "bookmark-1",
+      abortSignal: new AbortController().signal,
+    });
+
+    expect(result).toEqual({
+      status: "success",
+      content: expect.objectContaining({
+        imageUrl: "https://mmbiz.qpic.cn/cover.jpg",
+        htmlContent:
+          '<article><section><p>正文</p><img src="https://mmbiz.qpic.cn/one.jpg"></section></article>',
+        archivableAssets: [
+          {
+            kind: "image",
+            path: "/downloads/wechat/demo/cover.jpg",
+            originalUrl: "https://mmbiz.qpic.cn/cover.jpg",
+            fileName: "cover.jpg",
+            mimeType: "image/jpeg",
+            role: "cover",
+          },
+          {
+            kind: "image",
+            path: "/downloads/wechat/demo/one.jpg",
+            originalUrl: "https://mmbiz.qpic.cn/one.jpg",
+            fileName: "one.jpg",
+            mimeType: "image/jpeg",
+            role: "content",
+          },
+        ],
+      }),
     });
   });
 });
