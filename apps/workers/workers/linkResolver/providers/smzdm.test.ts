@@ -77,7 +77,7 @@ describe("SmzdmProvider", () => {
         author: "作者昵称",
         publisher: "什么值得买",
         imageUrl: "https://example.test/cover.jpg",
-        htmlContent: "<p>第一段</p>",
+        htmlContent: "<article><p>第一段</p></article>",
         archivableAssets: [
           {
             kind: "image",
@@ -145,7 +145,7 @@ describe("SmzdmProvider", () => {
         author: null,
         publisher: "什么值得买",
         imageUrl: "https://example.test/one.jpg",
-        htmlContent: "<p>HTML 正文</p>",
+        htmlContent: "<article><p>HTML 正文</p></article>",
         archivableAssets: [
           {
             kind: "image",
@@ -250,6 +250,54 @@ describe("SmzdmProvider", () => {
         datePublished: null,
       },
     });
+  });
+
+  it("wraps SMZDM HTML fragments in an article container for archive layout", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            source: "smzdm",
+            backend: "mobile_html",
+            url: "https://post.smzdm.com/p/ak8mxml9/",
+            finalUrl: "https://post.smzdm.com/p/ak8mxml9/",
+            articleId: "ak8mxml9",
+            title: "标题",
+            author: { name: "作者" },
+            summary: "摘要",
+            publishedAt: null,
+            contentHtml: "<h2>标题</h2><p>正文</p>",
+            contentText: "正文",
+            coverImageUrl: null,
+            images: [],
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const provider = new SmzdmProvider({
+      endpoint: "http://127.0.0.1:18063/api/smzdm/article",
+    });
+
+    const result = await provider.resolve({
+      url: "https://post.smzdm.com/p/ak8mxml9/",
+      jobId: "job-1",
+      userId: "user-1",
+      bookmarkId: "bookmark-1",
+      abortSignal: new AbortController().signal,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        status: "success",
+        content: expect.objectContaining({
+          htmlContent: "<article><h2>标题</h2><p>正文</p></article>",
+        }),
+      }),
+    );
   });
 
   it("returns resolver failure with retryability from the SMZDM service", async () => {

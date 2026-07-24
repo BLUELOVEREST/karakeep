@@ -134,6 +134,16 @@ function firstContentText(payload: UnknownRecord): string | null {
   );
 }
 
+function normalizeHtmlContent(htmlContent: string | null): string | null {
+  if (!htmlContent) {
+    return null;
+  }
+  if (/<(?:html|article)(?:\s|>)/i.test(htmlContent)) {
+    return htmlContent;
+  }
+  return `<article>${htmlContent}</article>`;
+}
+
 export class SmzdmProvider implements LinkResolverProvider {
   id = "smzdm";
   fallbackPolicy = "fail_fast" as const;
@@ -187,8 +197,9 @@ export class SmzdmProvider implements LinkResolverProvider {
     }
 
     const title = asString(payload.title);
-    const htmlContent =
-      asString(payload.contentHtml) ?? asString(payload.contentMarkdown);
+    const htmlContent = normalizeHtmlContent(
+      asString(payload.contentHtml) ?? asString(payload.contentMarkdown),
+    );
     const imageUrls = extractImageUrls(payload);
     const downloadedAssets = extractDownloadedImageAssets(payload);
 
