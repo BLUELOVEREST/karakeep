@@ -138,6 +138,98 @@ describe("CoolapkProvider", () => {
     });
   });
 
+  it("preserves raw html links from Coolapk text blocks as clickable anchors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            msg: "success",
+            feed: {
+              title: "带原始链接正文",
+              message: "兼容正文",
+              blocks: [
+                {
+                  type: "text",
+                  text: 'TrickyStore下载地址：<a class="feed-link-url" href="https://github.com/5ec1cff/TrickyStore" title="https://github.com/5ec1cff/TrickyStore" target="_blank" rel="nofollow">查看链接</a>\nPlayIntegrityFix下载地址<!--break-->：<a class="feed-link-url" href="https://github.com/KOWX712/PlayIntegrityFix" title="https://github.com/KOWX712/PlayIntegrityFix" target="_blank" rel="nofollow">查看链接</a>',
+                },
+              ],
+              share_url: "https://www.coolapk.com/feed/1",
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const provider = new CoolapkProvider({
+      endpoint: "http://127.0.0.1:18062/api/coolapk/feed",
+    });
+
+    const result = await provider.resolve({
+      url: "https://www.coolapk.com/feed/1",
+      jobId: "job-1",
+      userId: "user-1",
+      bookmarkId: "bookmark-1",
+      abortSignal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({
+      status: "success",
+      content: {
+        htmlContent:
+          '<article><h1>带原始链接正文</h1><p>TrickyStore下载地址：<a class="feed-link-url" href="https://github.com/5ec1cff/TrickyStore" title="https://github.com/5ec1cff/TrickyStore" target="_blank" rel="nofollow">查看链接</a><br>PlayIntegrityFix下载地址：<a class="feed-link-url" href="https://github.com/KOWX712/PlayIntegrityFix" title="https://github.com/KOWX712/PlayIntegrityFix" target="_blank" rel="nofollow">查看链接</a></p></article>',
+      },
+    });
+  });
+
+  it("preserves Coolapk tag links from text blocks as clickable anchors", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            success: true,
+            msg: "success",
+            feed: {
+              title: "带标签正文",
+              message: "兼容正文",
+              blocks: [
+                {
+                  type: "text",
+                  text: '以上就是全部内容，伙伴们有问题，评论区随时沟通哦[挑眉坏笑]\n<a class="feed-link-tag" href="/t/%E6%95%B0%E7%A0%81%E6%97%A5%E5%B8%B8?type=12">#数码日常#</a> <a class="feed-link-tag" href="/t/play%E4%BF%9D%E6%8A%A4%E6%9C%BA%E5%88%B6?type=12">#play保护机制#</a>',
+                },
+              ],
+              share_url: "https://www.coolapk.com/feed/1",
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    const provider = new CoolapkProvider({
+      endpoint: "http://127.0.0.1:18062/api/coolapk/feed",
+    });
+
+    const result = await provider.resolve({
+      url: "https://www.coolapk.com/feed/1",
+      jobId: "job-1",
+      userId: "user-1",
+      bookmarkId: "bookmark-1",
+      abortSignal: new AbortController().signal,
+    });
+
+    expect(result).toMatchObject({
+      status: "success",
+      content: {
+        htmlContent:
+          '<article><h1>带标签正文</h1><p>以上就是全部内容，伙伴们有问题，评论区随时沟通哦[挑眉坏笑]<br><a class="feed-link-tag" href="https://www.coolapk.com/t/%E6%95%B0%E7%A0%81%E6%97%A5%E5%B8%B8?type=12">#数码日常#</a> <a class="feed-link-tag" href="https://www.coolapk.com/t/play%E4%BF%9D%E6%8A%A4%E6%9C%BA%E5%88%B6?type=12">#play保护机制#</a></p></article>',
+      },
+    });
+  });
+
   it("falls back to message plus images when ordered blocks are absent", async () => {
     vi.stubGlobal(
       "fetch",

@@ -154,25 +154,35 @@ function readEncodedAnchorAttribute(
   return match?.[2] ?? null;
 }
 
+function normalizeCoolapkAnchorHref(href: string): string | null {
+  try {
+    const parsedHref = new URL(href, "https://www.coolapk.com");
+    if (!["http:", "https:"].includes(parsedHref.protocol)) {
+      return null;
+    }
+    if (href.startsWith("/") && parsedHref.hostname !== "www.coolapk.com") {
+      return null;
+    }
+    return parsedHref.toString();
+  } catch {
+    return null;
+  }
+}
+
 function restoreCoolapkInlineMarkup(value: string): string {
   return value
     .replace(/&amp;lt;!--break--&amp;gt;/g, "")
     .replace(/&lt;!--break--&gt;/g, "")
     .replace(
-      /&amp;lt;a\b([\s\S]*?)&amp;gt;([\s\S]*?)&amp;lt;\/a&amp;gt;/gi,
+      /(?:&amp;lt;|&lt;)a\b([\s\S]*?)(?:&amp;gt;|&gt;)([\s\S]*?)(?:&amp;lt;|&lt;)\/a(?:&amp;gt;|&gt;)/gi,
       (_match, rawAttributes: string, rawText: string) => {
         const href = readEncodedAnchorAttribute(rawAttributes, "href");
         if (!href) {
           return rawText;
         }
 
-        let parsedHref: URL;
-        try {
-          parsedHref = new URL(href);
-        } catch {
-          return rawText;
-        }
-        if (!["http:", "https:"].includes(parsedHref.protocol)) {
+        const normalizedHref = normalizeCoolapkAnchorHref(href);
+        if (!normalizedHref) {
           return rawText;
         }
 
@@ -182,7 +192,7 @@ function restoreCoolapkInlineMarkup(value: string): string {
         const rel = readEncodedAnchorAttribute(rawAttributes, "rel");
         const attributes = [
           className ? `class="${escapeHtmlAttribute(className)}"` : null,
-          `href="${escapeHtmlAttribute(parsedHref.toString())}"`,
+          `href="${escapeHtmlAttribute(normalizedHref)}"`,
           title ? `title="${escapeHtmlAttribute(title)}"` : null,
           target === "_blank" ? `target="_blank"` : null,
           rel ? `rel="${escapeHtmlAttribute(rel)}"` : null,
