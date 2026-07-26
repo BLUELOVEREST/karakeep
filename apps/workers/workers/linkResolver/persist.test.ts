@@ -54,8 +54,10 @@ vi.mock("@karakeep/shared/assetdb", () => ({
   ASSET_TYPES: {
     IMAGE_JPEG: "image/jpeg",
     TEXT_HTML: "text/html",
+    VIDEO_MP4: "video/mp4",
   },
   IMAGE_ASSET_TYPES: new Set(["image/jpeg", "image/png", "image/webp"]),
+  VIDEO_ASSET_TYPES: new Set(["video/mp4"]),
   newAssetId: vi.fn(() => "asset-new"),
   saveAssetFromFile: vi.fn(),
   silentDeleteAsset: mocks.silentDeleteAsset,
@@ -143,6 +145,56 @@ describe("persistResolvedLinkContent", () => {
     expect(mocks.silentDeleteAsset).toHaveBeenCalledWith(
       "user-1",
       "archive-old",
+    );
+  });
+
+  it("archives local resolved video assets referenced from html", async () => {
+    const tempDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "karakeep-resolver-video-"),
+    );
+    const localVideoPath = path.join(tempDir, "live_0.mp4");
+    await fs.promises.writeFile(localVideoPath, Buffer.from("video-bytes"));
+
+    mocks.storeHtmlContent.mockResolvedValue({ result: "store_inline" });
+    mocks.archiveWebpage.mockResolvedValue({
+      assetId: "archive-new",
+      contentType: "text/html",
+      size: 123,
+    });
+
+    await persistResolvedLinkContent({
+      bookmarkId: "bookmark-1",
+      userId: "user-1",
+      jobId: "job-1",
+      sourceUrl: "https://www.xiaohongshu.com/explore/1",
+      oldFullPageArchiveAssetId: "archive-old",
+      content: {
+        title: "Live 图",
+        htmlContent:
+          '<article><video src="https://video.test/live.mp4"></video></article>',
+        finalUrl: "https://www.xiaohongshu.com/explore/1",
+        archivableAssets: [
+          {
+            kind: "video",
+            path: localVideoPath,
+            originalUrl: "https://video.test/live.mp4",
+            fileName: "live_0.mp4",
+            mimeType: "video/mp4",
+            role: "live",
+          },
+        ],
+      },
+      abortSignal: new AbortController().signal,
+      runProxy: {},
+    } as Parameters<typeof persistResolvedLinkContent>[0]);
+
+    expect(mocks.archiveWebpage).toHaveBeenCalledWith(
+      '<!doctype html><html><head><meta charset="utf-8"><style>html{box-sizing:border-box}*,*:before,*:after{box-sizing:inherit}body{margin:0;padding:32px 18px;background:#fff;color:#111;font:16px/1.75 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}article{max-width:760px;margin:0 auto}img,video{display:block;max-width:100%;height:auto;margin:16px auto}figure{margin:24px 0}figcaption{margin-top:8px;color:#666;font-size:14px;text-align:center}pre,code{white-space:pre-wrap;word-break:break-word}a{color:#0969da}</style></head><body><article><video src="data:video/mp4;base64,dmlkZW8tYnl0ZXM="></video></article></body></html>',
+      "https://www.xiaohongshu.com/explore/1",
+      "user-1",
+      "job-1",
+      expect.any(AbortSignal),
+      {},
     );
   });
 });

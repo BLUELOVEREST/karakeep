@@ -44,12 +44,31 @@ export function toWebReadableStream(
   nodeStream: NodeJS.ReadableStream,
 ): ReadableStream<Uint8Array> {
   const reader = nodeStream as unknown as Readable;
+  let closed = false;
 
   return new ReadableStream({
     start(controller) {
-      reader.on("data", (chunk) => controller.enqueue(new Uint8Array(chunk)));
-      reader.on("end", () => controller.close());
-      reader.on("error", (err) => controller.error(err));
+      reader.on("data", (chunk) => {
+        if (!closed) {
+          controller.enqueue(new Uint8Array(chunk));
+        }
+      });
+      reader.on("end", () => {
+        if (!closed) {
+          closed = true;
+          controller.close();
+        }
+      });
+      reader.on("error", (err) => {
+        if (!closed) {
+          closed = true;
+          controller.error(err);
+        }
+      });
+    },
+    cancel() {
+      closed = true;
+      reader.destroy();
     },
   });
 }

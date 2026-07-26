@@ -1,6 +1,7 @@
+import { PassThrough } from "stream";
 import { describe, expect, it } from "vitest";
 
-import { sanitizeUploadFileName } from "./upload";
+import { sanitizeUploadFileName, toWebReadableStream } from "./upload";
 
 describe("sanitizeUploadFileName", () => {
   it("preserves unicode file names", () => {
@@ -15,5 +16,17 @@ describe("sanitizeUploadFileName", () => {
 
   it("uses a fallback when the file name is empty after sanitization", () => {
     expect(sanitizeUploadFileName("\u0000\n\t")).toBe("upload");
+  });
+});
+
+describe("toWebReadableStream", () => {
+  it("destroys the node stream when the web stream is cancelled", async () => {
+    const nodeStream = new PassThrough();
+    const webStream = toWebReadableStream(nodeStream);
+    const reader = webStream.getReader();
+
+    await reader.cancel();
+
+    expect(nodeStream.destroyed).toBe(true);
   });
 });

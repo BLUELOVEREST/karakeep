@@ -162,6 +162,102 @@ describe("SpiderXhsProvider", () => {
     }
   });
 
+  it("downloads live photo videos and renders them in the Xiaohongshu gallery", async () => {
+    const fetchMock = vi.fn();
+    const imageUrl = "https://sns-img.example.com/live.webp";
+    const liveVideoUrl = "https://sns-video.example.com/live.mp4";
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          msg: "success",
+          note: {
+            type: "image",
+            title: "Live 图",
+            images: [{ url: imageUrl, index: 0, liveVideoUrl }],
+          },
+        }),
+        { status: 200 },
+      ),
+    );
+    fetchMock.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          success: true,
+          msg: "success",
+          note: { id: "live123", type: "image", title: "Live 图" },
+          files: [
+            {
+              kind: "image",
+              role: "content",
+              index: 0,
+              path: "/downloads/xhs/live123/image_0.webp",
+              name: "image_0.webp",
+              mimeType: "image/webp",
+            },
+            {
+              kind: "video",
+              role: "live",
+              index: 0,
+              path: "/downloads/xhs/live123/live_0.mp4",
+              name: "live_0.mp4",
+              mimeType: "video/mp4",
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new SpiderXhsProvider({
+      endpoint: "http://127.0.0.1:18061/api/xhs/note",
+      downloadEndpoint: "http://127.0.0.1:18061/api/xhs/download",
+    });
+
+    const result = await provider.resolve({
+      url: "https://www.xiaohongshu.com/explore/live123?xsec_token=ABCD",
+      jobId: "job-1",
+      userId: "user-1",
+      bookmarkId: "bookmark-1",
+      abortSignal: new AbortController().signal,
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:18061/api/xhs/download",
+      expect.objectContaining({
+        body: JSON.stringify({
+          url: "https://www.xiaohongshu.com/explore/live123?xsec_token=ABCD",
+          mediaTypes: ["image", "video"],
+        }),
+      }),
+    );
+    expect(result).toEqual({
+      status: "success",
+      content: expect.objectContaining({
+        htmlContent: expect.stringContaining(`<video src="${liveVideoUrl}"`),
+        archivableAssets: [
+          {
+            kind: "image",
+            path: "/downloads/xhs/live123/image_0.webp",
+            fileName: "image_0.webp",
+            mimeType: "image/webp",
+            originalUrl: imageUrl,
+            role: "cover",
+          },
+          {
+            kind: "video",
+            path: "/downloads/xhs/live123/live_0.mp4",
+            fileName: "live_0.mp4",
+            mimeType: "video/mp4",
+            originalUrl: liveVideoUrl,
+            role: "live",
+          },
+        ],
+      }),
+    });
+  });
+
   it("fails image notes when Spider_XHS download endpoint is not configured", async () => {
     vi.stubGlobal(
       "fetch",

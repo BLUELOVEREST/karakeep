@@ -23,13 +23,13 @@ export interface ResolvedLinkContent {
 }
 
 export interface ResolvedLinkAsset {
-  kind: "image";
+  kind: "image" | "video";
   url?: string | null;
   path?: string | null;
   originalUrl?: string | null;
   fileName?: string | null;
   mimeType?: string | null;
-  role?: "cover" | "content" | null;
+  role?: "cover" | "content" | "live" | null;
 }
 
 export type LinkResolverResult =

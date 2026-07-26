@@ -9,6 +9,7 @@ import { QuotaService } from "@karakeep/shared-server";
 import {
   ASSET_TYPES,
   IMAGE_ASSET_TYPES,
+  VIDEO_ASSET_TYPES,
   newAssetId,
   saveAssetFromFile,
   silentDeleteAsset,
@@ -55,6 +56,18 @@ function normalizeImageContentType(contentType: string | null | undefined) {
     : ASSET_TYPES.IMAGE_JPEG;
 }
 
+function normalizeVideoContentType(contentType: string | null | undefined) {
+  return contentType && VIDEO_ASSET_TYPES.has(contentType)
+    ? contentType
+    : ASSET_TYPES.VIDEO_MP4;
+}
+
+function normalizeResolvedAssetContentType(asset: ResolvedLinkAsset) {
+  return asset.kind === "video"
+    ? normalizeVideoContentType(asset.mimeType)
+    : normalizeImageContentType(asset.mimeType);
+}
+
 function absolutizeLocalAssetUrls(htmlContent: string) {
   return htmlContent.replace(
     /\b(src|href)=(["'])(\/api\/assets\/[^"']+)\2/g,
@@ -73,14 +86,17 @@ function wrapResolvedArchiveHtml(htmlContent: string) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>${style}</style></head><body>${htmlContent}</body></html>`;
 }
 
-async function importLocalImageAsset(asset: ResolvedLinkAsset, userId: string) {
+async function importLocalResolvedAsset(
+  asset: ResolvedLinkAsset,
+  userId: string,
+) {
   const sourcePath = asset.path;
   if (!sourcePath) {
     return null;
   }
 
   const assetId = newAssetId();
-  const contentType = normalizeImageContentType(asset.mimeType);
+  const contentType = normalizeResolvedAssetContentType(asset);
   const extension = path.extname(sourcePath);
   const assetPath = path.join("/tmp", `${assetId}${extension}`);
   await fs.promises.copyFile(sourcePath, assetPath);
@@ -107,7 +123,7 @@ async function importLocalImageAsset(asset: ResolvedLinkAsset, userId: string) {
   };
 }
 
-async function archiveResolvedImageAssets(args: {
+async function archiveResolvedAssets(args: {
   assets: ResolvedLinkAsset[] | undefined;
   userId: string;
   bookmarkId: string;
@@ -115,10 +131,10 @@ async function archiveResolvedImageAssets(args: {
   abortSignal: AbortSignal;
   runProxy: RunProxyConfig;
 }) {
-  const imageAssets =
+  const mediaAssets =
     args.assets?.filter(
       (asset) =>
-        asset.kind === "image" &&
+        (asset.kind === "image" || asset.kind === "video") &&
         ((asset.url && asset.url.startsWith("http")) || asset.path),
     ) ?? [];
 
@@ -130,17 +146,19 @@ async function archiveResolvedImageAssets(args: {
     dataUrl?: string;
   }[] = [];
 
-  for (const asset of imageAssets) {
+  for (const asset of mediaAssets) {
     args.abortSignal.throwIfAborted();
     const imported = asset.path
-      ? await importLocalImageAsset(asset, args.userId)
-      : await downloadAndStoreImage(
-          asset.url!,
-          args.userId,
-          args.jobId,
-          args.abortSignal,
-          args.runProxy,
-        );
+      ? await importLocalResolvedAsset(asset, args.userId)
+      : asset.kind === "image"
+        ? await downloadAndStoreImage(
+            asset.url!,
+            args.userId,
+            args.jobId,
+            args.abortSignal,
+            args.runProxy,
+          )
+        : null;
     if (!imported) {
       continue;
     }
@@ -160,7 +178,7 @@ async function archiveResolvedImageAssets(args: {
         bookmarkId: args.bookmarkId,
         userId: args.userId,
         assetType:
-          asset.role === "cover"
+          asset.kind === "image" && asset.role === "cover"
             ? AssetTypes.LINK_BANNER_IMAGE
             : AssetTypes.BOOKMARK_ASSET,
         contentType: imported.contentType,
@@ -176,7 +194,7 @@ async function archiveResolvedImageAssets(args: {
 export async function persistResolvedLinkContent(
   args: PersistResolvedLinkContentArgs,
 ) {
-  const archivedImageAssets = await archiveResolvedImageAssets({
+  const archivedAssets = await archiveResolvedAssets({
     assets: args.content.archivableAssets,
     userId: args.userId,
     bookmarkId: args.bookmarkId,
@@ -186,7 +204,7 @@ export async function persistResolvedLinkContent(
   });
   const htmlContent = replaceArchivedAssetUrls(
     args.content.htmlContent,
-    archivedImageAssets.map((asset) => ({
+    archivedAssets.map((asset) => ({
       originalUrl: asset.originalUrl,
       assetUrl: asset.assetUrl,
     })),
@@ -199,7 +217,7 @@ export async function persistResolvedLinkContent(
   );
   args.abortSignal.throwIfAborted();
 
-  const archivedBannerAsset = archivedImageAssets.find(
+  const archivedBannerAsset = archivedAssets.find(
     (asset) => asset.dbAsset.assetType === AssetTypes.LINK_BANNER_IMAGE,
   );
   const imageAssetInfo =
@@ -286,7 +304,7 @@ export async function persistResolvedLinkContent(
       );
     }
 
-    const contentAssets = archivedImageAssets
+    const contentAssets = archivedAssets
       .filter((asset) => asset !== archivedBannerAsset)
       .map((asset) => asset.dbAsset);
     if (contentAssets.length > 0) {
@@ -297,7 +315,7 @@ export async function persistResolvedLinkContent(
   if (htmlContent && serverConfig.crawler.fullPageArchive) {
     const archiveHtmlContent = replaceArchivedAssetUrls(
       htmlContent,
-      archivedImageAssets
+      archivedAssets
         .filter((asset) => asset.dataUrl)
         .map((asset) => ({
           originalUrl: asset.assetUrl,

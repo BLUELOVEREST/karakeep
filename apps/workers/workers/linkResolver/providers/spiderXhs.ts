@@ -33,7 +33,10 @@ function escapeHtmlAttribute(value: string): string {
   return escapeHtml(value).replace(/"/g, "&quot;");
 }
 
-function extractImageUrls(note: UnknownRecord): string[] {
+function extractImageItems(note: UnknownRecord): {
+  url: string;
+  liveVideoUrl?: string;
+}[] {
   const imageList = note.images ?? note.image_list;
   if (!Array.isArray(imageList)) {
     return [];
@@ -47,7 +50,12 @@ function extractImageUrls(note: UnknownRecord): string[] {
         asString(record?.url_pre)
       );
     })
-    .filter((url): url is string => !!url?.startsWith("http"));
+    .filter((url): url is string => !!url?.startsWith("http"))
+    .map((url, index) => {
+      const record = asRecord(imageList[index]);
+      const liveVideoUrl = asString(record?.liveVideoUrl);
+      return liveVideoUrl?.startsWith("http") ? { url, liveVideoUrl } : { url };
+    });
 }
 
 function extractVideoUrls(note: UnknownRecord): string[] {
@@ -88,11 +96,16 @@ function buildXiaohongshuImageHtml(
   title: string | null,
   description: string | null,
   author: string | null,
-  imageUrls: string[],
+  imageItems: { url: string; liveVideoUrl?: string }[],
 ) {
-  const imageSlides = imageUrls
-    .map((imageUrl, index) => {
+  const imageSlides = imageItems
+    .map((image, index) => {
+      const imageUrl = image.url;
       const escapedUrl = escapeHtmlAttribute(imageUrl);
+      if (image.liveVideoUrl) {
+        const escapedVideoUrl = escapeHtmlAttribute(image.liveVideoUrl);
+        return `<figure class="xhs-slide xhs-live-slide"><video src="${escapedVideoUrl}" poster="${escapedUrl}" aria-label="小红书 live 图 ${index + 1}" muted loop playsinline autoplay preload="metadata"></video></figure>`;
+      }
       return `<figure class="xhs-slide"><img src="${escapedUrl}" alt="小红书图片 ${index + 1}" loading="lazy" /></figure>`;
     })
     .join("");
@@ -111,7 +124,7 @@ function buildXiaohongshuImageHtml(
 .xhs-note{max-width:760px;margin:0 auto;color:inherit}
 .xhs-gallery{display:flex;gap:16px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type: x mandatory;padding:4px 0 18px;margin:0 0 24px;-webkit-overflow-scrolling:touch}
 .xhs-slide{flex:0 0 min(88%,520px);scroll-snap-align:center;margin:0;border-radius:18px;overflow:hidden;background:rgba(127,127,127,.08)}
-.xhs-slide img{display:block;width:100%;height:auto;max-height:72vh;object-fit:contain;margin:0 auto}
+.xhs-slide img,.xhs-slide video{display:block;width:100%;height:auto;max-height:72vh;object-fit:contain;margin:0 auto}
 .xhs-body{max-width:680px;margin:0 auto}
 .xhs-title{margin:0 0 10px;font-size:1.45em;line-height:1.35}
 .xhs-author{margin:0 0 18px;color:color-mix(in srgb,currentColor 62%,transparent);font-size:.95em}
@@ -123,7 +136,7 @@ function buildXiaohongshuImageHtml(
 async function downloadImageAssets(args: {
   endpoint: string;
   url: string;
-  imageUrls: string[];
+  imageItems: { url: string; liveVideoUrl?: string }[];
   abortSignal: AbortSignal;
 }): Promise<
   | {
@@ -142,7 +155,12 @@ async function downloadImageAssets(args: {
       accept: "application/json",
       "content-type": "application/json",
     },
-    body: JSON.stringify({ url: args.url, mediaTypes: ["image"] }),
+    body: JSON.stringify({
+      url: args.url,
+      mediaTypes: args.imageItems.some((image) => image.liveVideoUrl)
+        ? ["image", "video"]
+        : ["image"],
+    }),
     signal: args.abortSignal,
   });
 
@@ -182,7 +200,7 @@ async function downloadImageAssets(args: {
     })
     .sort((a, b) => Number(a.index ?? 0) - Number(b.index ?? 0));
 
-  if (imageFiles.length < args.imageUrls.length) {
+  if (imageFiles.length < args.imageItems.length) {
     return {
       status: "failure",
       retryable: false,
@@ -192,16 +210,40 @@ async function downloadImageAssets(args: {
 
   return {
     status: "success",
-    assets: args.imageUrls.map((url, index) => {
+    assets: args.imageItems.flatMap((image, index) => {
       const file = imageFiles[index];
-      return {
-        kind: "image" as const,
-        path: asString(file.path),
-        fileName: asString(file.name),
-        mimeType: asString(file.mimeType),
-        originalUrl: url,
-        role: index === 0 ? ("cover" as const) : ("content" as const),
-      };
+      const assets: ResolvedLinkAsset[] = [
+        {
+          kind: "image" as const,
+          path: asString(file.path),
+          fileName: asString(file.name),
+          mimeType: asString(file.mimeType),
+          originalUrl: image.url,
+          role: index === 0 ? ("cover" as const) : ("content" as const),
+        },
+      ];
+      if (image.liveVideoUrl) {
+        const videoFile = files
+          .map((file) => asRecord(file))
+          .find(
+            (file) =>
+              file?.kind === "video" &&
+              file.role === "live" &&
+              Number(file.index ?? 0) === index &&
+              !!asString(file.path),
+          );
+        if (videoFile) {
+          assets.push({
+            kind: "video" as const,
+            path: asString(videoFile.path),
+            fileName: asString(videoFile.name),
+            mimeType: asString(videoFile.mimeType),
+            originalUrl: image.liveVideoUrl,
+            role: "live" as const,
+          });
+        }
+      }
+      return assets;
     }),
   };
 }
@@ -274,14 +316,15 @@ export class SpiderXhsProvider implements LinkResolverProvider {
       asString(note.description) ??
       asString(note.content);
     const author = asString(asRecord(note.user)?.nickname);
-    const imageUrls = extractImageUrls(note);
+    const imageItems = extractImageItems(note);
+    const imageUrls = imageItems.map((image) => image.url);
     const videoUrls = extractVideoUrls(note);
     const noteType = asString(note.type);
     let archivableAssets: ResolvedLinkAsset[] = [];
     const htmlContent =
       noteType === "video"
         ? buildMarkdown(title, description, imageUrls, videoUrls)
-        : buildXiaohongshuImageHtml(title, description, author, imageUrls);
+        : buildXiaohongshuImageHtml(title, description, author, imageItems);
 
     if (noteType !== "video" && imageUrls.length > 0) {
       if (!this.options.downloadEndpoint) {
@@ -296,7 +339,7 @@ export class SpiderXhsProvider implements LinkResolverProvider {
       const downloadedAssets = await downloadImageAssets({
         endpoint: this.options.downloadEndpoint,
         url: input.url,
-        imageUrls,
+        imageItems,
         abortSignal: input.abortSignal,
       });
       if (downloadedAssets.status === "failure") {
