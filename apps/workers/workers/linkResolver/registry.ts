@@ -14,6 +14,7 @@ export type XiaohongshuBackend = "auto" | "spider_xhs" | "mcp";
 export interface LinkResolverRegistryOptions {
   xiaohongshuBackend?: XiaohongshuBackend;
   xiaohongshuSpiderEndpoint?: string;
+  xiaohongshuSpiderDownloadEndpoint?: string;
   xiaohongshuMcpEndpoint?: string;
   coolapkResolverEndpoint?: string;
   smzdmResolverEndpoint?: string;
@@ -44,7 +45,9 @@ function isXiaohongshuHost(hostname: string): boolean {
     hostname === "xiaohongshu.com" ||
     hostname.endsWith(".xiaohongshu.com") ||
     hostname === "xhslink.com" ||
-    hostname.endsWith(".xhslink.com")
+    hostname.endsWith(".xhslink.com") ||
+    hostname === "xhslink.cn" ||
+    hostname.endsWith(".xhslink.cn")
   );
 }
 
@@ -141,6 +144,7 @@ export function buildLinkResolverRegistry(
   ) {
     xiaohongshuProvider = new SpiderXhsProvider({
       endpoint: options.xiaohongshuSpiderEndpoint,
+      downloadEndpoint: options.xiaohongshuSpiderDownloadEndpoint,
     });
   } else if (
     (xiaohongshuBackend === "auto" || xiaohongshuBackend === "mcp") &&

@@ -127,14 +127,43 @@ function downloadedAssetFromRecord(
   };
 }
 
+function stripForcedWhiteBackgrounds(htmlContent: string): string {
+  return htmlContent.replace(
+    /\sstyle=(["'])(.*?)\1/gis,
+    (_match, quote, style) => {
+      const declarations = style
+        .split(";")
+        .map((declaration: string) => declaration.trim())
+        .filter(Boolean)
+        .filter((declaration: string) => {
+          const [rawProperty, ...rawValueParts] = declaration.split(":");
+          const property = rawProperty?.trim().toLowerCase();
+          const value = rawValueParts.join(":").trim().toLowerCase();
+          if (property !== "background" && property !== "background-color") {
+            return true;
+          }
+          return !/^(?:#fff(?:fff)?|white|rgb\(\s*255\s*,\s*255\s*,\s*255\s*\))$/.test(
+            value,
+          );
+        });
+
+      if (declarations.length === 0) {
+        return "";
+      }
+      return ` style=${quote}${declarations.join("; ")};${quote}`;
+    },
+  );
+}
+
 function normalizeHtmlContent(htmlContent: string | null): string | null {
   if (!htmlContent) {
     return null;
   }
+  const normalizedHtmlContent = stripForcedWhiteBackgrounds(htmlContent);
   if (/<(?:html|article)(?:\s|>)/i.test(htmlContent)) {
-    return htmlContent;
+    return normalizedHtmlContent;
   }
-  return `<article>${htmlContent}</article>`;
+  return `<article>${normalizedHtmlContent}</article>`;
 }
 
 export class WechatArticleProvider implements LinkResolverProvider {

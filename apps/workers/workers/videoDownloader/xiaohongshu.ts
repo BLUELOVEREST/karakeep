@@ -61,8 +61,17 @@ export function isXiaohongshuUrl(rawUrl: string): boolean {
     url.hostname === "xiaohongshu.com" ||
     url.hostname.endsWith(".xiaohongshu.com") ||
     url.hostname === "xhslink.com" ||
-    url.hostname.endsWith(".xhslink.com")
+    url.hostname.endsWith(".xhslink.com") ||
+    url.hostname === "xhslink.cn" ||
+    url.hostname.endsWith(".xhslink.cn")
   );
+}
+
+export function isXiaohongshuDownloadEndpointRequired(
+  rawUrl: string,
+  endpoint: string | null | undefined,
+): boolean {
+  return isXiaohongshuUrl(rawUrl) && !endpoint;
 }
 
 export function selectXiaohongshuDownloadedFiles(result: unknown): {

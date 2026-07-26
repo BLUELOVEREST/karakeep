@@ -51,6 +51,7 @@ import {
 import { crawlPage } from "./crawlPage";
 import { runParseSubprocess } from "./parseSubprocess";
 import { redactUrlCredentials, shouldRetryCrawlStatusCode } from "./utils";
+import { shouldSkipFullPageArchiveForVideoUrl } from "../videoUtils";
 
 const tracer = getTracer("@karakeep/workers");
 
@@ -469,6 +470,7 @@ export async function crawlAndParseUrl(
       return async () => {
         if (
           !precrawledArchiveAssetId &&
+          !shouldSkipFullPageArchiveForVideoUrl(url) &&
           (serverConfig.crawler.fullPageArchive || archiveFullPage)
         ) {
           const archiveResult = await archiveWebpage(

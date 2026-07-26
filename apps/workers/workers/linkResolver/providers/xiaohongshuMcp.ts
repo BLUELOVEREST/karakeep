@@ -134,7 +134,9 @@ export class XiaohongshuMcpProvider implements LinkResolverProvider {
       url.hostname === "xiaohongshu.com" ||
       url.hostname.endsWith(".xiaohongshu.com") ||
       url.hostname === "xhslink.com" ||
-      url.hostname.endsWith(".xhslink.com")
+      url.hostname.endsWith(".xhslink.com") ||
+      url.hostname === "xhslink.cn" ||
+      url.hostname.endsWith(".xhslink.cn")
     );
   }
 

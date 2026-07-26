@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  isXiaohongshuDownloadEndpointRequired,
   isXiaohongshuUrl,
   resolveXiaohongshuMediaDownload,
   selectXiaohongshuDownloadedFiles,
@@ -16,8 +17,27 @@ describe("xiaohongshu media downloader client", () => {
       isXiaohongshuUrl("https://www.xiaohongshu.com/explore/note123"),
     ).toBe(true);
     expect(isXiaohongshuUrl("https://xhslink.com/a1b2c3")).toBe(true);
+    expect(isXiaohongshuUrl("https://xhslink.cn/o/a1b2c3")).toBe(true);
     expect(isXiaohongshuUrl("https://example.com/explore/note123")).toBe(false);
     expect(isXiaohongshuUrl("not a url")).toBe(false);
+  });
+
+  it("requires Spider_XHS download endpoint for Xiaohongshu video URLs", () => {
+    expect(
+      isXiaohongshuDownloadEndpointRequired(
+        "https://www.xiaohongshu.com/explore/video123",
+        undefined,
+      ),
+    ).toBe(true);
+    expect(
+      isXiaohongshuDownloadEndpointRequired(
+        "https://www.xiaohongshu.com/explore/video123",
+        "http://spider-xhs:18061/api/xhs/download",
+      ),
+    ).toBe(false);
+    expect(
+      isXiaohongshuDownloadEndpointRequired("https://example.com/video", ""),
+    ).toBe(false);
   });
 
   it("calls Spider_XHS download endpoint and returns cover and video files", async () => {

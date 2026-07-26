@@ -388,6 +388,8 @@ async function runCrawler(
   const linkResolverRegistry = buildLinkResolverRegistry({
     xiaohongshuBackend: serverConfig.crawler.xiaohongshuBackend,
     xiaohongshuSpiderEndpoint: serverConfig.crawler.xiaohongshuSpiderEndpoint,
+    xiaohongshuSpiderDownloadEndpoint:
+      serverConfig.crawler.xiaohongshuSpiderDownloadEndpoint,
     xiaohongshuMcpEndpoint: serverConfig.crawler.xiaohongshuMcpEndpoint,
     coolapkResolverEndpoint: serverConfig.crawler.coolapkResolverEndpoint,
     smzdmResolverEndpoint: serverConfig.crawler.smzdmResolverEndpoint,

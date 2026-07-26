@@ -38,9 +38,11 @@ import {
   resolveDouyinVideoDownload,
 } from "./videoDownloader/douyin";
 import {
+  isXiaohongshuDownloadEndpointRequired,
   isXiaohongshuUrl,
   resolveXiaohongshuMediaDownload,
 } from "./videoDownloader/xiaohongshu";
+import { getVideoContentTypeForDownloadedFile } from "./videoUtils";
 
 const TMP_FOLDER = path.join(os.tmpdir(), "video_downloads");
 
@@ -149,6 +151,13 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
   const douyinResolverEndpoint = serverConfig.crawler.douyinResolverEndpoint;
   const xiaohongshuDownloadEndpoint =
     serverConfig.crawler.xiaohongshuSpiderDownloadEndpoint;
+  if (isXiaohongshuDownloadEndpointRequired(url, xiaohongshuDownloadEndpoint)) {
+    logger.warn(
+      `[VideoCrawler][${jobId}] Skipping Xiaohongshu video download for "${url}", because XIAOHONGSHU_SPIDER_DOWNLOAD_ENDPOINT is not configured.`,
+    );
+    return;
+  }
+
   if (xiaohongshuDownloadEndpoint && isXiaohongshuUrl(url)) {
     const resolved = await resolveXiaohongshuMediaDownload({
       endpoint: xiaohongshuDownloadEndpoint,
@@ -283,6 +292,7 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
         return;
       }
       assetPath = downloadPath;
+      contentType = getVideoContentTypeForDownloadedFile(null, assetPath);
     } catch (e) {
       const err = e as Error;
       if (

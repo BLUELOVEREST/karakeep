@@ -1,10 +1,14 @@
+ARG RUNTIME_BASE_IMAGE=ghcr.io/blueloverest/karakeep-aio:0.32.0-eric.5
+
 ################# Monolith Builder ##############
 FROM rust:1-bookworm AS monolith_builder
 
 ARG APT_MIRROR
 ARG APT_SECURITY_MIRROR
 
-RUN if [ -n "${APT_MIRROR}" ]; then \
+RUN --mount=type=cache,id=cargo-registry,target=/usr/local/cargo/registry \
+    --mount=type=cache,id=cargo-git,target=/usr/local/cargo/git \
+    if [ -n "${APT_MIRROR}" ]; then \
         SECURITY_MIRROR="${APT_SECURITY_MIRROR:-${APT_MIRROR}-security}" \
         && sed -i \
             -e "s|http://deb.debian.org/debian-security|${SECURITY_MIRROR}|g" \
@@ -31,7 +35,12 @@ ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
 
 # Keep Corepack current enough to verify modern pnpm release signatures.
-RUN npm install -g corepack@latest && corepack enable pnpm
+RUN if [ -n "${NPM_CONFIG_REGISTRY}" ]; then \
+        npm config set registry "${NPM_CONFIG_REGISTRY}"; \
+    fi \
+    && npm install -g corepack@latest \
+    && corepack enable pnpm \
+    && COREPACK_NPM_REGISTRY="${NPM_CONFIG_REGISTRY:-https://registry.npmjs.org}" corepack prepare pnpm@11.2.1 --activate
 
 RUN if [ -n "${APT_MIRROR}" ]; then \
         SECURITY_MIRROR="${APT_SECURITY_MIRROR:-${APT_MIRROR}-security}" \
@@ -73,10 +82,12 @@ COPY ./patches ./patches
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
-RUN if [ -n "${NPM_CONFIG_REGISTRY}" ]; then \
+RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+    if [ -n "${NPM_CONFIG_REGISTRY}" ]; then \
         npm config set registry "${NPM_CONFIG_REGISTRY}" \
         && pnpm config set registry "${NPM_CONFIG_REGISTRY}"; \
     fi \
+    && pnpm config set store-dir /pnpm/store \
     && pnpm install --frozen-lockfile
 
 COPY . .
@@ -206,6 +217,22 @@ COPY --from=base --chown=node:node /app/apps/web/.next/static ./apps/web/.next/s
 COPY --from=base /prod/workers /app/apps/workers
 
 ENTRYPOINT ["/init"]
+
+################# Local AIO ##############
+
+FROM ${RUNTIME_BASE_IMAGE} AS local_aio
+
+ARG SERVER_VERSION=local-eric
+ENV SERVER_VERSION=${SERVER_VERSION}
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
+
+COPY --from=base --chown=node:node /app/apps/web/.next/standalone ./
+COPY --from=base /app/apps/web/public ./apps/web/public
+COPY --from=base /db_migrations /db_migrations
+RUN mkdir -p ./apps/web/.next && chown node:node ./apps/web/.next
+COPY --from=base --chown=node:node /app/apps/web/.next/static ./apps/web/.next/static
+COPY --from=base /prod/workers /app/apps/workers
 
 ################# The AIO ##############
 
