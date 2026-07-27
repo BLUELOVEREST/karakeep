@@ -276,6 +276,7 @@ async function enqueuePostCrawlJobs(
   bookmarkId: string,
   userId: string,
   url: string,
+  options: { skipVideoDownload?: boolean } = {},
 ): Promise<void> {
   // Propagate priority to child jobs
   const enqueueOpts: EnqueueOptions = {
@@ -315,7 +316,7 @@ async function enqueuePostCrawlJobs(
   // Update the search index
   await triggerSearchReindex(bookmarkId, enqueueOpts);
 
-  if (serverConfig.crawler.downloadVideo) {
+  if (serverConfig.crawler.downloadVideo && !options.skipVideoDownload) {
     // Trigger a potential download of a video from the URL
     await VideoWorkerQueue.enqueue(
       {
@@ -362,6 +363,7 @@ async function runCrawler(
     screenshotAssetId: oldScreenshotAssetId,
     pdfAssetId: oldPdfAssetId,
     imageAssetId: oldImageAssetId,
+    videoAssetId: oldVideoAssetId,
     fullPageArchiveAssetId: oldFullPageArchiveAssetId,
     contentAssetId: oldContentAssetId,
     precrawledArchiveAssetId,
@@ -396,6 +398,7 @@ async function runCrawler(
     wechatArticleResolverEndpoint:
       serverConfig.crawler.wechatArticleResolverEndpoint,
     wechatArticleAuthKey: serverConfig.crawler.wechatArticleAuthKey,
+    douyinResolverEndpoint: serverConfig.crawler.douyinResolverEndpoint,
   });
   const linkResolverProvider = linkResolverRegistry.selectProvider(url);
   if (linkResolverProvider) {
@@ -420,11 +423,14 @@ async function runCrawler(
         content: resolved.content,
         oldContentAssetId,
         oldImageAssetId,
+        oldVideoAssetId,
         oldFullPageArchiveAssetId,
         abortSignal: job.abortSignal,
         runProxy,
       });
-      await enqueuePostCrawlJobs(job, bookmarkId, userId, url);
+      await enqueuePostCrawlJobs(job, bookmarkId, userId, url, {
+        skipVideoDownload: resolved.content.skipVideoDownload === true,
+      });
       return { status: "completed" };
     }
 

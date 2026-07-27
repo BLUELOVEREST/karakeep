@@ -197,4 +197,53 @@ describe("persistResolvedLinkContent", () => {
       {},
     );
   });
+
+  it("stores a primary local resolved video asset as the bookmark video", async () => {
+    const tempDir = await fs.promises.mkdtemp(
+      path.join(os.tmpdir(), "karakeep-resolver-primary-video-"),
+    );
+    const localVideoPath = path.join(tempDir, "video.mp4");
+    await fs.promises.writeFile(localVideoPath, Buffer.from("video-bytes"));
+
+    mocks.storeHtmlContent.mockResolvedValue({ result: "store_inline" });
+    mocks.archiveWebpage.mockResolvedValue(null);
+
+    await persistResolvedLinkContent({
+      bookmarkId: "bookmark-1",
+      userId: "user-1",
+      jobId: "job-1",
+      sourceUrl: "https://www.douyin.com/video/123",
+      oldVideoAssetId: "video-old",
+      content: {
+        title: "抖音视频",
+        htmlContent:
+          '<article><video src="/downloads/video.mp4"></video></article>',
+        finalUrl: "https://www.douyin.com/video/123",
+        archivableAssets: [
+          {
+            kind: "video",
+            path: localVideoPath,
+            originalUrl: "/downloads/video.mp4",
+            fileName: "video.mp4",
+            mimeType: "video/mp4",
+            role: "content",
+          },
+        ],
+      },
+      abortSignal: new AbortController().signal,
+      runProxy: {},
+    } as Parameters<typeof persistResolvedLinkContent>[0]);
+
+    expect(mocks.updateAsset).toHaveBeenCalledWith(
+      "video-old",
+      expect.objectContaining({
+        bookmarkId: "bookmark-1",
+        userId: "user-1",
+        assetType: AssetTypes.LINK_VIDEO,
+        contentType: "video/mp4",
+        fileName: "video.mp4",
+      }),
+      mocks.txn,
+    );
+  });
 });

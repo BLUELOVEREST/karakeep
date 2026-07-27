@@ -108,6 +108,29 @@ describe("buildLinkResolverRegistry", () => {
     expect(provider?.fallbackPolicy).toBe("fail_fast");
   });
 
+  it("selects the Douyin provider when configured", () => {
+    const registry = buildLinkResolverRegistry({
+      douyinResolverEndpoint: "http://127.0.0.1:18064/api/karakeep/v1/douyin",
+    });
+
+    const provider = registry.selectProvider(
+      "https://www.douyin.com/video/123",
+    );
+
+    expect(provider?.id).toBe("douyin");
+  });
+
+  it("returns fail-fast for Douyin domains when the external resolver is not configured", () => {
+    const registry = buildLinkResolverRegistry({});
+
+    const provider = registry.selectProvider(
+      "https://www.douyin.com/video/123",
+    );
+
+    expect(provider?.id).toBe("douyin-unconfigured");
+    expect(provider?.fallbackPolicy).toBe("fail_fast");
+  });
+
   it("returns null for generic webpages", () => {
     const registry = buildLinkResolverRegistry({
       xiaohongshuSpiderEndpoint: "http://127.0.0.1:18061/api/xhs/note",

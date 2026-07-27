@@ -20,16 +20,17 @@ export interface ResolvedLinkContent {
   htmlContent?: string | null;
   finalUrl?: string | null;
   archivableAssets?: ResolvedLinkAsset[];
+  skipVideoDownload?: boolean;
 }
 
 export interface ResolvedLinkAsset {
-  kind: "image" | "video";
+  kind: "image" | "video" | "file";
   url?: string | null;
   path?: string | null;
   originalUrl?: string | null;
   fileName?: string | null;
   mimeType?: string | null;
-  role?: "cover" | "content" | "live" | null;
+  role?: "cover" | "content" | "live" | "metadata" | null;
 }
 
 export type LinkResolverResult =

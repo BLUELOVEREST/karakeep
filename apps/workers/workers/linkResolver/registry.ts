@@ -4,6 +4,7 @@ import type {
   LinkResolverResult,
 } from "./types";
 import { CoolapkProvider } from "./providers/coolapk";
+import { DouyinProvider } from "./providers/douyin";
 import { SmzdmProvider } from "./providers/smzdm";
 import { SpiderXhsProvider } from "./providers/spiderXhs";
 import { WechatArticleProvider } from "./providers/wechatArticle";
@@ -20,6 +21,7 @@ export interface LinkResolverRegistryOptions {
   smzdmResolverEndpoint?: string;
   wechatArticleResolverEndpoint?: string;
   wechatArticleAuthKey?: string;
+  douyinResolverEndpoint?: string;
 }
 
 class UnconfiguredXiaohongshuProvider implements LinkResolverProvider {
@@ -129,6 +131,33 @@ function isWechatArticleUrl(url: URL): boolean {
   );
 }
 
+class UnconfiguredDouyinProvider implements LinkResolverProvider {
+  id = "douyin-unconfigured";
+  fallbackPolicy = "fail_fast" as const;
+
+  canResolve(url: URL): boolean {
+    return isDouyinHost(url.hostname);
+  }
+
+  async resolve(_input: LinkResolverInput): Promise<LinkResolverResult> {
+    return {
+      status: "failure",
+      retryable: false,
+      reason:
+        "Douyin resolver is not configured. Set DOUYIN_RESOLVER_ENDPOINT.",
+    };
+  }
+}
+
+function isDouyinHost(hostname: string): boolean {
+  return (
+    hostname === "douyin.com" ||
+    hostname.endsWith(".douyin.com") ||
+    hostname === "iesdouyin.com" ||
+    hostname.endsWith(".iesdouyin.com")
+  );
+}
+
 export interface LinkResolverRegistry {
   selectProvider(rawUrl: string): LinkResolverProvider | null;
 }
@@ -172,11 +201,16 @@ export function buildLinkResolverRegistry(
       })
     : new UnconfiguredWechatArticleProvider();
 
+  const douyinProvider = options.douyinResolverEndpoint
+    ? new DouyinProvider({ endpoint: options.douyinResolverEndpoint })
+    : new UnconfiguredDouyinProvider();
+
   const providers: LinkResolverProvider[] = [
     xiaohongshuProvider,
     coolapkProvider,
     smzdmProvider,
     wechatArticleProvider,
+    douyinProvider,
   ];
 
   return {

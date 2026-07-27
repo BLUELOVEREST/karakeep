@@ -34,6 +34,7 @@ export interface PersistResolvedLinkContentArgs {
   content: ResolvedLinkContent;
   oldContentAssetId?: string;
   oldImageAssetId?: string;
+  oldVideoAssetId?: string;
   oldFullPageArchiveAssetId?: string;
   abortSignal: AbortSignal;
   runProxy: RunProxyConfig;
@@ -63,9 +64,15 @@ function normalizeVideoContentType(contentType: string | null | undefined) {
 }
 
 function normalizeResolvedAssetContentType(asset: ResolvedLinkAsset) {
-  return asset.kind === "video"
-    ? normalizeVideoContentType(asset.mimeType)
-    : normalizeImageContentType(asset.mimeType);
+  if (asset.kind === "video") {
+    return normalizeVideoContentType(asset.mimeType);
+  }
+  if (asset.kind === "file") {
+    return asset.mimeType === ASSET_TYPES.APPLICATION_JSON
+      ? ASSET_TYPES.APPLICATION_JSON
+      : ASSET_TYPES.APPLICATION_ZIP;
+  }
+  return normalizeImageContentType(asset.mimeType);
 }
 
 function absolutizeLocalAssetUrls(htmlContent: string) {
@@ -134,12 +141,14 @@ async function archiveResolvedAssets(args: {
   const mediaAssets =
     args.assets?.filter(
       (asset) =>
-        (asset.kind === "image" || asset.kind === "video") &&
+        (asset.kind === "image" ||
+          asset.kind === "video" ||
+          asset.kind === "file") &&
         ((asset.url && asset.url.startsWith("http")) || asset.path),
     ) ?? [];
 
   const archivedAssets: {
-    originalUrl: string;
+    originalUrl?: string;
     assetUrl: string;
     dbAsset: typeof assets.$inferInsert;
     role: ResolvedLinkAsset["role"];
@@ -164,12 +173,9 @@ async function archiveResolvedAssets(args: {
     }
 
     const originalUrl = asset.originalUrl ?? asset.url;
-    if (!originalUrl) {
-      continue;
-    }
 
     archivedAssets.push({
-      originalUrl,
+      originalUrl: originalUrl ?? undefined,
       assetUrl: getAssetUrl(imported.assetId),
       role: asset.role,
       dataUrl: "dataUrl" in imported ? imported.dataUrl : undefined,
@@ -180,7 +186,9 @@ async function archiveResolvedAssets(args: {
         assetType:
           asset.kind === "image" && asset.role === "cover"
             ? AssetTypes.LINK_BANNER_IMAGE
-            : AssetTypes.BOOKMARK_ASSET,
+            : asset.kind === "video" && asset.role === "content"
+              ? AssetTypes.LINK_VIDEO
+              : AssetTypes.BOOKMARK_ASSET,
         contentType: imported.contentType,
         size: imported.size,
         fileName: asset.fileName ?? null,
@@ -204,10 +212,16 @@ export async function persistResolvedLinkContent(
   });
   const htmlContent = replaceArchivedAssetUrls(
     args.content.htmlContent,
-    archivedAssets.map((asset) => ({
-      originalUrl: asset.originalUrl,
-      assetUrl: asset.assetUrl,
-    })),
+    archivedAssets.flatMap((asset) =>
+      asset.originalUrl
+        ? [
+            {
+              originalUrl: asset.originalUrl,
+              assetUrl: asset.assetUrl,
+            },
+          ]
+        : [],
+    ),
   );
 
   const htmlContentAssetInfo = await storeHtmlContent(
@@ -219,6 +233,9 @@ export async function persistResolvedLinkContent(
 
   const archivedBannerAsset = archivedAssets.find(
     (asset) => asset.dbAsset.assetType === AssetTypes.LINK_BANNER_IMAGE,
+  );
+  const archivedVideoAsset = archivedAssets.find(
+    (asset) => asset.dbAsset.assetType === AssetTypes.LINK_VIDEO,
   );
   const imageAssetInfo =
     !archivedBannerAsset &&
@@ -304,8 +321,18 @@ export async function persistResolvedLinkContent(
       );
     }
 
+    if (archivedVideoAsset) {
+      await updateAsset(args.oldVideoAssetId, archivedVideoAsset.dbAsset, txn);
+      assetDeletionTasks.push(
+        silentDeleteAsset(args.userId, args.oldVideoAssetId),
+      );
+    }
+
     const contentAssets = archivedAssets
-      .filter((asset) => asset !== archivedBannerAsset)
+      .filter(
+        (asset) =>
+          asset !== archivedBannerAsset && asset !== archivedVideoAsset,
+      )
       .map((asset) => asset.dbAsset);
     if (contentAssets.length > 0) {
       await txn.insert(assets).values(contentAssets);
