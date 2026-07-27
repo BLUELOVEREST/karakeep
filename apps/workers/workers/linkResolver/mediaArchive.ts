@@ -7,6 +7,13 @@ function escapeRegExp(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function escapeHtmlAttribute(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function replaceArchivedAssetUrls(
   htmlContent: string | null | undefined,
   archivedAssets: ArchivedAssetUrl[],
@@ -17,10 +24,16 @@ export function replaceArchivedAssetUrls(
 
   let replaced = htmlContent;
   for (const asset of archivedAssets) {
-    replaced = replaced.replace(
-      new RegExp(escapeRegExp(asset.originalUrl), "g"),
-      asset.assetUrl,
-    );
+    const urlVariants = new Set([
+      asset.originalUrl,
+      escapeHtmlAttribute(asset.originalUrl),
+    ]);
+    for (const originalUrl of urlVariants) {
+      replaced = replaced.replace(
+        new RegExp(escapeRegExp(originalUrl), "g"),
+        asset.assetUrl,
+      );
+    }
   }
   return replaced;
 }
