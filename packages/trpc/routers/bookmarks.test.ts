@@ -74,6 +74,20 @@ describe("Bookmark Routes", () => {
     expect(res.content.type).toEqual(BookmarkTypes.LINK);
   });
 
+  test<CustomTestContext>("create link bookmark extracts first url from shared text", async ({
+    apiCallers,
+  }) => {
+    const api = apiCallers[0].bookmarks;
+    const bookmark = await api.createBookmark({
+      url: "3.53 复制打开抖音，看看【老许维修的作品】马桶滋滋响 https://v.douyin.com/OxkvsdpiLis/ :0pm V@y.Ty 01/27 KwF:/ https://example.com/ignored",
+      type: BookmarkTypes.LINK,
+    });
+
+    const res = await api.getBookmark({ bookmarkId: bookmark.id });
+    assert(res.content.type == BookmarkTypes.LINK);
+    expect(res.content.url).toEqual("https://v.douyin.com/OxkvsdpiLis/");
+  });
+
   test<CustomTestContext>("api key with read scope can read bookmarks but not write", async ({
     apiCallers,
     db,

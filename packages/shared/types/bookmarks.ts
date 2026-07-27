@@ -1,6 +1,9 @@
 import { z } from "zod";
 
-import { isAllowedBookmarkUrl } from "../utils/url";
+import {
+  extractFirstAllowedBookmarkUrl,
+  isAllowedBookmarkUrl,
+} from "../utils/url";
 import { zCursorV2 } from "./pagination";
 import { zAttachedByEnumSchema, zBookmarkTagSchema } from "./tags";
 
@@ -14,6 +17,13 @@ export const zBookmarkUrlSchema = z
   .refine(isAllowedBookmarkUrl, {
     message: "Only http and https URLs are allowed",
   });
+
+const zNewBookmarkUrlSchema = z.preprocess((value) => {
+  if (typeof value !== "string") {
+    return value;
+  }
+  return extractFirstAllowedBookmarkUrl(value) ?? value;
+}, zBookmarkUrlSchema);
 
 export const enum BookmarkTypes {
   LINK = "link",
@@ -185,7 +195,7 @@ export const zNewBookmarkRequestSchema = z.intersection(
   z.discriminatedUnion("type", [
     z.object({
       type: z.literal(BookmarkTypes.LINK),
-      url: zBookmarkUrlSchema,
+      url: zNewBookmarkUrlSchema,
       precrawledArchiveId: z.string().optional(),
     }),
     z.object({

@@ -15,3 +15,24 @@ export function isAllowedBookmarkUrl(url: string): boolean {
     return false;
   }
 }
+
+function trimSharedTextUrlNoise(url: string): string {
+  return url.replace(/[),.;:!?，。；：！？、）】》]+$/u, "");
+}
+
+export function extractFirstAllowedBookmarkUrl(text: string): string | null {
+  if (isAllowedBookmarkUrl(text)) {
+    return text;
+  }
+
+  const matches = text.matchAll(
+    /https?:\/\/[^\s<>"'`，。；；！？【】（）]+/giu,
+  );
+  for (const match of matches) {
+    const candidate = trimSharedTextUrlNoise(match[0]);
+    if (isAllowedBookmarkUrl(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
