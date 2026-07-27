@@ -5,9 +5,7 @@ name: Build And Push AIO Image
 # offline archive deployment.
 
 "on":
-  push:
-    tags:
-      - "eric/v*"
+  workflow_dispatch:
 
 jobs:
   build-and-push:
