@@ -148,6 +148,7 @@ describe("SpiderXhsProvider", () => {
         ],
         finalUrl:
           "https://www.xiaohongshu.com/explore/65f123456789abcdef012345?xsec_token=ABCD",
+        skipVideoDownload: true,
       },
     });
     expect(result.status).toBe("success");

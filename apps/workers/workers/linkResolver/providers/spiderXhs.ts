@@ -358,6 +358,7 @@ export class SpiderXhsProvider implements LinkResolverProvider {
         htmlContent,
         archivableAssets,
         finalUrl: input.url,
+        ...(noteType !== "video" ? { skipVideoDownload: true } : {}),
       },
     };
   }
