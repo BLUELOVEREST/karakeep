@@ -1,0 +1,94 @@
+name: Build And Push AIO Image
+
+# Release workflow for the self-hosted Gitea registry.
+# This intentionally builds only the linux/amd64 all-in-one image used by the
+# offline archive deployment.
+
+"on":
+  push:
+    tags:
+      - "eric/v*"
+
+jobs:
+  build-and-push:
+    runs-on: ci
+
+    defaults:
+      run:
+        shell: sh
+
+    env:
+      REGISTRY: 192.168.200.101:54453
+      IMAGE_REPOSITORY: zhangzhicheng/eric-karakeep-aio
+      APT_MIRROR: http://mirrors.tuna.tsinghua.edu.cn/debian
+      APT_SECURITY_MIRROR: http://mirrors.tuna.tsinghua.edu.cn/debian-security
+      NPM_CONFIG_REGISTRY: https://registry.npmmirror.com
+      DOCKER_BUILDKIT: "1"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Prepare image metadata
+        run: |
+          set -eu
+          IMAGE_TAG="$(printf '%s' "${GITHUB_REF_NAME}" | sed -E 's#^eric/##')"
+          case "${IMAGE_TAG}" in
+            v[0-9]*)
+              ;;
+            *)
+              echo "Unsupported release tag: ${GITHUB_REF_NAME}" >&2
+              echo "Expected a tag like eric/v0.32.0-eric.16" >&2
+              exit 1
+              ;;
+          esac
+          if printf '%s' "${IMAGE_TAG}" | grep -q '/'; then
+            echo "Docker image tag must not contain '/': ${IMAGE_TAG}" >&2
+            exit 1
+          fi
+          {
+            echo "IMAGE_TAG=${IMAGE_TAG}"
+            echo "IMAGE_VERSION=${IMAGE_TAG}"
+            echo "IMAGE_SHA_TAG=sha-${GITHUB_SHA}"
+          } >> "${GITHUB_ENV}"
+
+      - name: Show environment
+        run: |
+          set -eu
+          uname -a
+          cat /etc/os-release || true
+          docker version
+          echo "Git ref: ${GITHUB_REF_NAME}"
+          echo "Commit: ${GITHUB_SHA}"
+          echo "Image: ${REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+          echo "Platform: linux/amd64"
+          echo "APT mirror: ${APT_MIRROR}"
+          echo "NPM registry: ${NPM_CONFIG_REGISTRY}"
+
+      - name: Login to Gitea Registry
+        run: |
+          set -eu
+          echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login "${REGISTRY}" -u "${{ secrets.REGISTRY_USER }}" --password-stdin
+
+      - name: Build AIO image
+        run: |
+          set -eu
+          docker build \
+            --platform linux/amd64 \
+            --file docker/Dockerfile \
+            --target aio \
+            --build-arg "SERVER_VERSION=${IMAGE_VERSION}" \
+            --build-arg "APT_MIRROR=${APT_MIRROR}" \
+            --build-arg "APT_SECURITY_MIRROR=${APT_SECURITY_MIRROR}" \
+            --build-arg "NPM_CONFIG_REGISTRY=${NPM_CONFIG_REGISTRY}" \
+            -t "${REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}" \
+            -t "${REGISTRY}/${IMAGE_REPOSITORY}:latest" \
+            -t "${REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_SHA_TAG}" \
+            .
+
+      - name: Push image tags
+        run: |
+          set -eu
+          docker push "${REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_TAG}"
+          docker push "${REGISTRY}/${IMAGE_REPOSITORY}:latest"
+          docker push "${REGISTRY}/${IMAGE_REPOSITORY}:${IMAGE_SHA_TAG}"
