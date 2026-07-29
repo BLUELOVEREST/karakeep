@@ -12,11 +12,13 @@ export default async function Bookmarks({
   header,
   showDivider,
   showEditorCard = false,
+  showEditorListSelector = false,
 }: {
   query: Omit<ZGetBookmarksRequest, "sortOrder" | "includeContent">; // Sort order is handled by the store
   header?: React.ReactNode;
   showDivider?: boolean;
   showEditorCard?: boolean;
+  showEditorListSelector?: boolean;
 }) {
   const session = await getServerAuthSession();
   if (!session) {
@@ -35,6 +37,7 @@ export default async function Bookmarks({
         query={query}
         bookmarks={bookmarks}
         showEditorCard={showEditorCard}
+        showEditorListSelector={showEditorListSelector}
       />
     </div>
   );

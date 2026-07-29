@@ -18,10 +18,12 @@ export default function UpdatableBookmarksGrid({
   query,
   bookmarks: initialBookmarks,
   showEditorCard = false,
+  showEditorListSelector = false,
 }: {
   query: Omit<ZGetBookmarksRequest, "sortOrder" | "includeContent">; // Sort order is handled by the store
   bookmarks: ZGetBookmarksResponse;
   showEditorCard?: boolean;
+  showEditorListSelector?: boolean;
   itemsPerPage?: number;
 }) {
   const api = useTRPC();
@@ -60,6 +62,7 @@ export default function UpdatableBookmarksGrid({
       fetchNextPage={fetchNextPage}
       isFetchingNextPage={isFetchingNextPage}
       showEditorCard={showEditorCard}
+      showEditorListSelector={showEditorListSelector}
     />
   );
 

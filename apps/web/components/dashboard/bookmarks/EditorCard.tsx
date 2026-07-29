@@ -1,6 +1,7 @@
 import type { SubmitErrorHandler, SubmitHandler } from "react-hook-form";
 import React, { useImperativeHandle, useRef } from "react";
 import { ActionButton } from "@/components/ui/action-button";
+import { Button } from "@/components/ui/button";
 import { Form, FormControl, FormItem } from "@/components/ui/form";
 import { Kbd } from "@/components/ui/kbd";
 import MultipleChoiceDialog from "@/components/ui/multiple-choice-dialog";
@@ -16,6 +17,7 @@ import {
 } from "@/lib/userLocalSettings/bookmarksLayout";
 import { cn, getOS } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { X } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { useHotkeys } from "react-hotkeys-hook";
 import { z } from "zod";
@@ -23,6 +25,7 @@ import { z } from "zod";
 import { useCreateBookmarkWithPostHook } from "@karakeep/shared-react/hooks/bookmarks";
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
 
+import { BookmarkListSelector } from "../lists/BookmarkListSelector";
 import { useUploadAsset } from "../UploadDropzone";
 
 interface MultiUrlImportState {
@@ -30,9 +33,18 @@ interface MultiUrlImportState {
   text: string;
 }
 
-export default function EditorCard({ className }: { className?: string }) {
+export default function EditorCard({
+  className,
+  showListSelector = false,
+}: {
+  className?: string;
+  showListSelector?: boolean;
+}) {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const [selectedListId, setSelectedListId] = React.useState<string | null>(
+    null,
+  );
 
   const [multiUrlImportState, setMultiUrlImportState] =
     React.useState<MultiUrlImportState | null>(null);
@@ -54,24 +66,28 @@ export default function EditorCard({ className }: { className?: string }) {
     inputRef.current?.focus();
   });
 
-  const { mutate, isPending } = useCreateBookmarkWithPostHook({
-    onSuccess: (resp) => {
-      if (resp.alreadyExists) {
-        toast({
-          description: <BookmarkAlreadyExistsToast bookmarkId={resp.id} />,
-          variant: "default",
-        });
-      }
-      form.reset();
-      // if the list layout is used, we reset the size of the editor card to the original size after submitting
-      if (bookmarkLayout === "list" && inputRef?.current?.style) {
-        inputRef.current.style.height = "auto";
-      }
+  const { mutate, isPending } = useCreateBookmarkWithPostHook(
+    {
+      onSuccess: (resp) => {
+        if (resp.alreadyExists) {
+          toast({
+            description: <BookmarkAlreadyExistsToast bookmarkId={resp.id} />,
+            variant: "default",
+          });
+        }
+        setSelectedListId(null);
+        form.reset();
+        // if the list layout is used, we reset the size of the editor card to the original size after submitting
+        if (bookmarkLayout === "list" && inputRef?.current?.style) {
+          inputRef.current.style.height = "auto";
+        }
+      },
+      onError: (e) => {
+        toast({ description: e.message, variant: "destructive" });
+      },
     },
-    onError: (e) => {
-      toast({ description: e.message, variant: "destructive" });
-    },
-  });
+    { listId: selectedListId },
+  );
 
   const uploadAsset = useUploadAsset();
 
@@ -235,6 +251,32 @@ export default function EditorCard({ className }: { className?: string }) {
             />
           </FormControl>
         </FormItem>
+        {showListSelector && (
+          <div className="flex flex-col gap-1">
+            <span className="text-xs text-muted-foreground">Save to list</span>
+            <div className="flex gap-2">
+              <BookmarkListSelector
+                value={selectedListId}
+                onChange={setSelectedListId}
+                placeholder="Unclassified"
+                listTypes={["manual"]}
+                disabled={isPending}
+              />
+              {selectedListId && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  disabled={isPending}
+                  onClick={() => setSelectedListId(null)}
+                  aria-label="Save without list"
+                >
+                  <X className="size-4" />
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
         <ActionButton
           disabled={!form.formState.dirtyFields.text}
           loading={isPending}

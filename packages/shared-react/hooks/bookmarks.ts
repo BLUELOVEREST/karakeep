@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
+import type { ZGetBookmarksRequest } from "@karakeep/shared/types/bookmarks";
 import { getBookmarkRefreshInterval } from "@karakeep/shared/utils/bookmarkUtils";
 
 import { useTRPC } from "../trpc";
@@ -8,6 +9,79 @@ import { useAddBookmarkToList } from "./lists";
 import { scheduleInvalidateQueries } from "./query-invalidation";
 
 type TRPCApi = ReturnType<typeof useTRPC>;
+
+export type BookmarkPostCreationAction =
+  | {
+      type: "updateBookmark";
+      input: {
+        bookmarkId: string;
+        favourited?: boolean;
+        archived?: boolean;
+      };
+    }
+  | {
+      type: "addToList";
+      input: {
+        bookmarkId: string;
+        listId: string;
+      };
+    }
+  | {
+      type: "updateTags";
+      input: {
+        bookmarkId: string;
+        attach: { tagId: string }[];
+        detach: { tagId: string }[];
+      };
+    };
+
+type BookmarkPostCreationContext = Pick<
+  ZGetBookmarksRequest,
+  "archived" | "favourited" | "listId" | "tagId"
+>;
+
+export function buildBookmarkPostCreationActions(
+  bookmarkId: string,
+  gridQueryCtx: BookmarkPostCreationContext | undefined,
+  selectedListId?: string | null,
+): BookmarkPostCreationAction[] {
+  const actions: BookmarkPostCreationAction[] = [];
+
+  if (gridQueryCtx?.favourited ?? gridQueryCtx?.archived) {
+    actions.push({
+      type: "updateBookmark",
+      input: {
+        bookmarkId,
+        favourited: gridQueryCtx?.favourited,
+        archived: gridQueryCtx?.archived,
+      },
+    });
+  }
+
+  const targetListId = selectedListId ?? gridQueryCtx?.listId;
+  if (targetListId) {
+    actions.push({
+      type: "addToList",
+      input: {
+        bookmarkId,
+        listId: targetListId,
+      },
+    });
+  }
+
+  if (gridQueryCtx?.tagId) {
+    actions.push({
+      type: "updateTags",
+      input: {
+        bookmarkId,
+        attach: [{ tagId: gridQueryCtx.tagId }],
+        detach: [],
+      },
+    });
+  }
+
+  return actions;
+}
 
 export function useAutoRefreshingBookmarkQuery(
   input: Parameters<TRPCApi["bookmarks"]["getBookmark"]["queryOptions"]>[0],
@@ -52,10 +126,11 @@ export function useCreateBookmarkWithPostHook(
   opts?: Parameters<
     TRPCApi["bookmarks"]["createBookmark"]["mutationOptions"]
   >[0],
+  postCreationOptions?: { listId?: string | null },
 ) {
   const api = useTRPC();
   const queryClient = useQueryClient();
-  const postCreationCB = useBookmarkPostCreationHook();
+  const postCreationCB = useBookmarkPostCreationHook(postCreationOptions);
   return useMutation(
     api.bookmarks.createBookmark.mutationOptions({
       ...opts,
@@ -210,47 +285,30 @@ export function useUpdateBookmarkTags(
 /**
  * Checks the grid query context to know if we need to augment the bookmark post creation to fit the grid context
  */
-export function useBookmarkPostCreationHook() {
+export function useBookmarkPostCreationHook(options?: {
+  listId?: string | null;
+}) {
   const gridQueryCtx = useBookmarkGridContext();
   const { mutateAsync: updateBookmark } = useUpdateBookmark();
   const { mutateAsync: addToList } = useAddBookmarkToList();
   const { mutateAsync: updateTags } = useUpdateBookmarkTags();
 
   return async (bookmarkId: string) => {
-    if (!gridQueryCtx) {
-      return;
-    }
-
-    const promises = [];
-    if (gridQueryCtx.favourited ?? gridQueryCtx.archived) {
-      promises.push(
-        updateBookmark({
-          bookmarkId,
-          favourited: gridQueryCtx.favourited,
-          archived: gridQueryCtx.archived,
-        }),
-      );
-    }
-
-    if (gridQueryCtx.listId) {
-      promises.push(
-        addToList({
-          bookmarkId,
-          listId: gridQueryCtx.listId,
-        }),
-      );
-    }
-
-    if (gridQueryCtx.tagId) {
-      promises.push(
-        updateTags({
-          bookmarkId,
-          attach: [{ tagId: gridQueryCtx.tagId }],
-          detach: [],
-        }),
-      );
-    }
-
-    return Promise.all(promises);
+    return Promise.all(
+      buildBookmarkPostCreationActions(
+        bookmarkId,
+        gridQueryCtx,
+        options?.listId,
+      ).map((action) => {
+        switch (action.type) {
+          case "updateBookmark":
+            return updateBookmark(action.input);
+          case "addToList":
+            return addToList(action.input);
+          case "updateTags":
+            return updateTags(action.input);
+        }
+      }),
+    );
   };
 }

@@ -149,9 +149,11 @@ export default function BookmarksGrid({
   fetchNextPage = () => ({}),
   isFetchingNextPage = false,
   showEditorCard = false,
+  showEditorListSelector = false,
 }: {
   bookmarks: ZBookmark[];
   showEditorCard?: boolean;
+  showEditorListSelector?: boolean;
   hasNextPage?: boolean;
   isFetchingNextPage?: boolean;
   fetchNextPage?: () => void;
@@ -233,7 +235,7 @@ export default function BookmarksGrid({
   const children = [
     showEditorCard && (
       <StyledBookmarkCard key={"editor"}>
-        <EditorCard />
+        <EditorCard showListSelector={showEditorListSelector} />
       </StyledBookmarkCard>
     ),
     ...bookmarks.map((bookmark, index) => (
