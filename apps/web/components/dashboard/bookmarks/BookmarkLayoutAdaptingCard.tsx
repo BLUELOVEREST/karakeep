@@ -3,7 +3,6 @@
 import type { BookmarksLayoutTypes } from "@/lib/userLocalSettings/types";
 import type { ReactNode } from "react";
 import { useCallback } from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { useSession } from "@/lib/auth/client";
 import { BOOKMARK_DRAG_MIME } from "@/lib/bookmark-drag";
@@ -38,6 +37,7 @@ import {
 import { switchCase } from "@karakeep/shared/utils/switch";
 
 import BookmarkActionBar from "./BookmarkActionBar";
+import BookmarkFavicon from "./BookmarkFavicon";
 import BookmarkFormattedCreatedAt from "./BookmarkFormattedCreatedAt";
 import BookmarkOwnerIcon from "./BookmarkOwnerIcon";
 import { ArchivedActionIcon, FavouritedActionIcon } from "./icons";
@@ -427,14 +427,7 @@ function CompactView({
         <div className="flex items-center gap-2">
           {bookmark.content.type === BookmarkTypes.LINK &&
             bookmark.content.favicon && (
-              <Image
-                src={bookmark.content.favicon}
-                alt="favicon"
-                width={5}
-                unoptimized
-                height={5}
-                className="size-5"
-              />
+              <BookmarkFavicon src={bookmark.content.favicon} />
             )}
           {bookmark.content.type === BookmarkTypes.TEXT && (
             <NotebookPen className="size-5" />
