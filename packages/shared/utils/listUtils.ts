@@ -7,6 +7,15 @@ export interface ZBookmarkListTreeNode {
 
 export type ZBookmarkListRoot = Record<string, ZBookmarkListTreeNode>;
 
+export interface ZBookmarkListTreeRow {
+  id: string;
+  item: ZBookmarkList;
+  path: ZBookmarkList[];
+  label: string;
+  depth: number;
+  hasChildren: boolean;
+}
+
 export function listsToTree(lists: ZBookmarkList[]) {
   const idToList = lists.reduce<Record<string, ZBookmarkList>>((acc, list) => {
     acc[list.id] = list;
@@ -61,3 +70,41 @@ export function listsToTree(lists: ZBookmarkList[]) {
 
 export const listNameFromPath = (path: ZBookmarkList[]) =>
   path.map((p) => `${p.icon} ${p.name}`).join(" / ");
+
+export function listTreeRowsFromPaths(
+  allPaths: ZBookmarkList[][],
+  expandedIds: Set<string>,
+  search = "",
+): ZBookmarkListTreeRow[] {
+  const childCounts = new Map<string, number>();
+  const rows = allPaths.map((path) => {
+    const item = path[path.length - 1];
+    const parent = path[path.length - 2];
+    if (parent) {
+      childCounts.set(parent.id, (childCounts.get(parent.id) ?? 0) + 1);
+    }
+    return {
+      id: item.id,
+      item,
+      path,
+      label: listNameFromPath(path),
+      depth: path.length - 1,
+      hasChildren: false,
+    };
+  });
+
+  rows.forEach((row) => {
+    row.hasChildren = (childCounts.get(row.id) ?? 0) > 0;
+  });
+
+  const normalizedSearch = search.trim().toLowerCase();
+  if (normalizedSearch) {
+    return rows.filter((row) =>
+      row.label.toLowerCase().includes(normalizedSearch),
+    );
+  }
+
+  return rows.filter((row) =>
+    row.path.slice(0, -1).every((ancestor) => expandedIds.has(ancestor.id)),
+  );
+}

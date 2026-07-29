@@ -261,6 +261,7 @@ export default function EditorCard({
                 placeholder="Unclassified"
                 listTypes={["manual"]}
                 disabled={isPending}
+                displayMode="tree"
               />
               {selectedListId && (
                 <Button

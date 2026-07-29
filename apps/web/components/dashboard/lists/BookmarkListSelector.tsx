@@ -1,4 +1,4 @@
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -15,11 +15,20 @@ import {
 } from "@/components/ui/popover";
 import LoadingSpinner from "@/components/ui/spinner";
 import { cn } from "@/lib/utils";
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  ChevronRight,
+  ChevronsUpDown,
+  X,
+} from "lucide-react";
 
 import { useBookmarkLists } from "@karakeep/shared-react/hooks/lists";
 import { ZBookmarkList } from "@karakeep/shared/types/lists";
-import { listNameFromPath } from "@karakeep/shared/utils/listUtils";
+import {
+  listNameFromPath,
+  listTreeRowsFromPaths,
+} from "@karakeep/shared/utils/listUtils";
 
 interface DataProps {
   isPending: boolean;
@@ -33,6 +42,8 @@ interface ListSelectorComponentProps extends DataProps {
   setOpen: (open: boolean) => void;
   children: ReactNode;
   disabled?: boolean;
+  displayMode?: "flat" | "tree";
+  selectedIds?: string[];
 }
 
 interface SingleSelectionProps {
@@ -42,6 +53,7 @@ interface SingleSelectionProps {
   className?: string;
   multiSelect?: false;
   disabled?: boolean;
+  displayMode?: "flat" | "tree";
 }
 
 interface MultiSelectionProps {
@@ -50,6 +62,7 @@ interface MultiSelectionProps {
   multiSelect: true;
   placeholder?: string;
   className?: string;
+  displayMode?: "flat" | "tree";
 }
 
 interface SelectionProps {
@@ -57,6 +70,7 @@ interface SelectionProps {
   hideBookmarkIds?: string[];
   listTypes?: ZBookmarkList["type"][];
   disabled?: boolean;
+  displayMode?: "flat" | "tree";
 }
 
 type BookmarkListSelectorProps = SelectionProps &
@@ -71,10 +85,46 @@ function ListSelectorComponent({
   isPending,
   allPaths,
   disabled,
+  displayMode = "flat",
+  selectedIds = [],
 }: ListSelectorComponentProps) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [searchValue, setSearchValue] = useState("");
+
+  useEffect(() => {
+    if (displayMode !== "tree" || !open) {
+      return;
+    }
+    const expanded = new Set(expandedIds);
+    allPaths
+      ?.filter((path) => selectedIds.includes(path[path.length - 1].id))
+      .forEach((path) => {
+        path.slice(0, -1).forEach((ancestor) => expanded.add(ancestor.id));
+      });
+    setExpandedIds(expanded);
+    // Only run when the popover opens or the current selection changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [displayMode, open, selectedIds.join(","), allPaths]);
+
   if (isPending) {
     return <LoadingSpinner />;
   }
+
+  const isTree = displayMode === "tree";
+  const rows = isTree
+    ? listTreeRowsFromPaths(allPaths ?? [], expandedIds, searchValue)
+    : undefined;
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   return (
     <Popover
@@ -82,6 +132,9 @@ function ListSelectorComponent({
       onOpenChange={(nextOpen) => {
         if (!disabled) {
           setOpen(nextOpen);
+          if (!nextOpen) {
+            setSearchValue("");
+          }
         }
       }}
     >
@@ -91,7 +144,17 @@ function ListSelectorComponent({
         onWheel={(e) => e.stopPropagation()}
       >
         <Command>
-          <CommandInput placeholder="Search lists..." />
+          <CommandInput
+            placeholder="Search lists..."
+            value={searchValue}
+            onValueChange={setSearchValue}
+          />
+          {isTree && (
+            <p className="border-b px-3 py-2 text-xs text-muted-foreground">
+              Select where to save. Click parent lists or arrows to expand
+              nested lists.
+            </p>
+          )}
           <CommandList>
             <CommandEmpty>
               {allPaths && allPaths.length === 0
@@ -99,27 +162,90 @@ function ListSelectorComponent({
                 : "No lists found."}
             </CommandEmpty>
             <CommandGroup className="max-h-60 overflow-y-auto">
-              {allPaths?.map((path) => {
-                const l = path[path.length - 1];
-                const name = listNameFromPath(path);
-                return (
-                  <CommandItem
-                    key={l.id}
-                    value={l.id}
-                    keywords={[l.name, l.icon]}
-                    onSelect={onSelect}
-                    className="cursor-pointer"
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        isItemSelected(l.id) ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    {name}
-                  </CommandItem>
-                );
-              })}
+              {isTree
+                ? rows?.map((row) => {
+                    const isExpanded = expandedIds.has(row.id);
+                    return (
+                      <CommandItem
+                        key={row.id}
+                        value={row.id}
+                        keywords={[row.item.name, row.item.icon, row.label]}
+                        onSelect={(value) => {
+                          if (row.hasChildren && !searchValue.trim()) {
+                            toggleExpanded(row.id);
+                            return;
+                          }
+                          onSelect(value);
+                        }}
+                        className="cursor-pointer"
+                      >
+                        <Check
+                          className={cn(
+                            "h-4 w-4",
+                            isItemSelected(row.id)
+                              ? "opacity-100"
+                              : "opacity-0",
+                          )}
+                        />
+                        <button
+                          type="button"
+                          aria-label={
+                            isExpanded
+                              ? `Collapse ${row.item.name}`
+                              : `Expand ${row.item.name}`
+                          }
+                          className={cn(
+                            "flex size-5 items-center justify-center rounded-sm text-muted-foreground hover:bg-accent hover:text-foreground",
+                            !row.hasChildren && "pointer-events-none opacity-0",
+                          )}
+                          style={{ marginLeft: `${row.depth * 1}rem` }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            if (row.hasChildren) {
+                              toggleExpanded(row.id);
+                            }
+                          }}
+                        >
+                          {isExpanded ? (
+                            <ChevronDown className="size-4" />
+                          ) : (
+                            <ChevronRight className="size-4" />
+                          )}
+                        </button>
+                        <span className="min-w-0 flex-1 truncate">
+                          {searchValue.trim()
+                            ? row.label
+                            : `${row.item.icon} ${row.item.name}`}
+                        </span>
+                      </CommandItem>
+                    );
+                  })
+                : allPaths?.map((path) => {
+                    const l = path[path.length - 1];
+                    const name = listNameFromPath(path);
+                    return (
+                      <CommandItem
+                        key={l.id}
+                        value={l.id}
+                        keywords={[l.name, l.icon]}
+                        onSelect={onSelect}
+                        className="cursor-pointer"
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            isItemSelected(l.id) ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                        {name}
+                      </CommandItem>
+                    );
+                  })}
             </CommandGroup>
           </CommandList>
         </Command>
@@ -136,6 +262,7 @@ function BookmarkListSingleSelector({
   isPending,
   allPaths,
   disabled,
+  displayMode,
 }: SingleSelectionProps & DataProps) {
   const [open, setOpen] = useState(false);
   const onSelect = (currentValue: string) => {
@@ -161,6 +288,8 @@ function BookmarkListSingleSelector({
       isPending={isPending}
       allPaths={allPaths}
       disabled={disabled}
+      displayMode={displayMode}
+      selectedIds={value ? [value] : []}
     >
       <Button
         variant="outline"
@@ -184,6 +313,7 @@ function BookmarkListMultiSelector({
   allPaths,
   className,
   disabled,
+  displayMode,
 }: MultiSelectionProps & DataProps & { disabled?: boolean }) {
   const [open, setOpen] = useState(false);
   const onSelect = (currentValue: string) => {
@@ -215,6 +345,8 @@ function BookmarkListMultiSelector({
       isPending={isPending}
       allPaths={allPaths}
       disabled={disabled}
+      displayMode={displayMode}
+      selectedIds={value ?? []}
     >
       <div
         role="combobox"
