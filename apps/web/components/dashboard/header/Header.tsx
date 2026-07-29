@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import AddBookmarkDialog from "@/components/dashboard/bookmarks/AddBookmarkDialog";
 import GlobalActions from "@/components/dashboard/GlobalActions";
 import ProfileOptions from "@/components/dashboard/header/ProfileOptions";
 import { SearchInput } from "@/components/dashboard/search/SearchInput";
@@ -21,6 +22,7 @@ export default async function Header() {
       </div>
       <div className="flex flex-1 gap-2">
         <SearchInput className="rounded-md bg-muted" />
+        <AddBookmarkDialog />
         <GlobalActions />
       </div>
       <div className="flex items-center">

@@ -6,7 +6,7 @@ export default async function BookmarksPage() {
     <div>
       <Bookmarks
         query={{ archived: false }}
-        showEditorCard={true}
+        showEditorCard={false}
         showEditorListSelector={true}
       />
     </div>

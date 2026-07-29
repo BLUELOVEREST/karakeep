@@ -30,6 +30,8 @@ import {
   listTreeRowsFromPaths,
 } from "@karakeep/shared/utils/listUtils";
 
+import { getTreeListRowAction } from "./bookmarkListSelectorBehavior";
+
 interface DataProps {
   isPending: boolean;
   allPaths?: ZBookmarkList[][];
@@ -151,8 +153,8 @@ function ListSelectorComponent({
           />
           {isTree && (
             <p className="border-b px-3 py-2 text-xs text-muted-foreground">
-              Select where to save. Click parent lists or arrows to expand
-              nested lists.
+              Select a list name to save there. Use arrows to expand nested
+              lists.
             </p>
           )}
           <CommandList>
@@ -171,7 +173,12 @@ function ListSelectorComponent({
                         value={row.id}
                         keywords={[row.item.name, row.item.icon, row.label]}
                         onSelect={(value) => {
-                          if (row.hasChildren && !searchValue.trim()) {
+                          if (
+                            getTreeListRowAction({
+                              trigger: "row",
+                              hasChildren: row.hasChildren,
+                            }) === "toggle"
+                          ) {
                             toggleExpanded(row.id);
                             return;
                           }
@@ -206,7 +213,12 @@ function ListSelectorComponent({
                           onClick={(e) => {
                             e.preventDefault();
                             e.stopPropagation();
-                            if (row.hasChildren) {
+                            if (
+                              getTreeListRowAction({
+                                trigger: "expand",
+                                hasChildren: row.hasChildren,
+                              }) === "toggle"
+                            ) {
                               toggleExpanded(row.id);
                             }
                           }}
