@@ -19,6 +19,13 @@ export default function BookmarkAssetImage({
         source={assetSource}
         style={{ width: "100%", height: "100%" }}
         contentFit={contentFit}
+        onError={(event) => {
+          console.warn("[KarakeepImage] Asset image failed", {
+            assetId,
+            uri: assetSource.uri,
+            error: event.error,
+          });
+        }}
       />
     </View>
   );

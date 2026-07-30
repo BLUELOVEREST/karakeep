@@ -7,6 +7,7 @@ import {
   zUploadErrorSchema,
   zUploadResponseSchema,
 } from "@karakeep/shared/types/uploads";
+import { useAddBookmarkToList } from "@karakeep/shared-react/hooks/lists";
 
 import type { Settings } from "./settings";
 import { buildApiHeaders } from "./utils";
@@ -20,6 +21,7 @@ export function useUploadAsset(
 ) {
   const api = useTRPC();
   const queryClient = useQueryClient();
+  const { mutate: addToList } = useAddBookmarkToList();
 
   const { mutate: createBookmark, isPending: isCreatingBookmark } = useMutation(
     api.bookmarks.createBookmark.mutationOptions({
@@ -38,7 +40,12 @@ export function useUploadAsset(
   );
 
   const { mutate: uploadAsset, isPending: isUploading } = useMutation({
-    mutationFn: async (file: { type: string; name: string; uri: string }) => {
+    mutationFn: async (file: {
+      type: string;
+      name: string;
+      uri: string;
+      listId?: string | null;
+    }) => {
       // There's a bug in the native FormData implementation (https://github.com/facebook/react-native/issues/44737)
       // that will only get fixed in react native 0.77. Using the BlobUtil implementation for now.
       const resp = await ReactNativeBlobUtil.fetch(
@@ -59,16 +66,25 @@ export function useUploadAsset(
       );
       return zUploadResponseSchema.parse(await resp.json());
     },
-    onSuccess: (resp) => {
+    onSuccess: (resp, file) => {
       const assetId = resp.assetId;
       const assetType =
         resp.contentType === "application/pdf" ? "pdf" : "image";
-      createBookmark({
-        type: BookmarkTypes.ASSET,
-        assetId,
-        assetType,
-        source: "mobile",
-      });
+      createBookmark(
+        {
+          type: BookmarkTypes.ASSET,
+          assetId,
+          assetType,
+          source: "mobile",
+        },
+        {
+          onSuccess: (bookmark) => {
+            if (file.listId) {
+              addToList({ bookmarkId: bookmark.id, listId: file.listId });
+            }
+          },
+        },
+      );
     },
     onError: (e) => {
       if (options.onError) {

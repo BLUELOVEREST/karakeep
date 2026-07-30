@@ -108,3 +108,25 @@ export function listTreeRowsFromPaths(
     row.path.slice(0, -1).every((ancestor) => expandedIds.has(ancestor.id)),
   );
 }
+
+export function filterAssignableListPaths(
+  allPaths: ZBookmarkList[][],
+  {
+    hideIds = [],
+    listTypes = ["manual"],
+  }: {
+    hideIds?: string[];
+    listTypes?: ZBookmarkList["type"][];
+  } = {},
+) {
+  const hiddenIds = new Set(hideIds);
+
+  return allPaths.filter((path) => {
+    const item = path[path.length - 1];
+    return (
+      !hiddenIds.has(item.id) &&
+      listTypes.includes(item.type) &&
+      item.userRole !== "viewer"
+    );
+  });
+}

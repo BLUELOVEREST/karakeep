@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import type { ZBookmarkList } from "../types/lists";
-import { listTreeRowsFromPaths } from "./listUtils";
+import { filterAssignableListPaths, listTreeRowsFromPaths } from "./listUtils";
 
 function list(
   id: string,
   name: string,
   parentId: string | null = null,
+  overrides: Partial<ZBookmarkList> = {},
 ): ZBookmarkList {
   return {
     id,
@@ -17,6 +18,7 @@ function list(
     public: false,
     hasCollaborators: false,
     userRole: "owner",
+    ...overrides,
   };
 }
 
@@ -55,5 +57,27 @@ describe("listTreeRowsFromPaths", () => {
         label: row.label,
       })),
     ).toEqual([{ id: "nas", label: "📁 数码 / 📁 NAS" }]);
+  });
+});
+
+describe("filterAssignableListPaths", () => {
+  const digital = list("digital", "数码");
+  const nas = list("nas", "NAS", digital.id);
+  const smart = list("smart", "Smart", null, { type: "smart" });
+  const sharedViewer = list("viewer", "Shared", null, { userRole: "viewer" });
+  const allPaths = [[digital], [digital, nas], [smart], [sharedViewer]];
+
+  it("keeps manual lists that the user can edit", () => {
+    expect(
+      filterAssignableListPaths(allPaths).map((path) => path.at(-1)?.id),
+    ).toEqual(["digital", "nas"]);
+  });
+
+  it("can hide lists that are already selected", () => {
+    expect(
+      filterAssignableListPaths(allPaths, {
+        hideIds: ["digital"],
+      }).map((path) => path.at(-1)?.id),
+    ).toEqual(["nas"]);
   });
 });

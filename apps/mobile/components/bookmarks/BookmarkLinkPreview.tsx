@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Linking, Pressable, TouchableOpacity, View } from "react-native";
 import ImageView from "react-native-image-viewing";
 import WebView from "react-native-webview";
@@ -10,7 +10,9 @@ import * as WebBrowser from "expo-web-browser";
 import { Text } from "@/components/ui/Text";
 import { useAssetUrl } from "@/lib/hooks";
 import { useReaderSettings, WEBVIEW_FONT_FAMILIES } from "@/lib/readerSettings";
+import useAppSettings from "@/lib/settings";
 import { useColorScheme } from "@/lib/useColorScheme";
+import { buildApiHeaders } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { BookOpen, X } from "lucide-react-native";
 
@@ -40,6 +42,32 @@ function openUrlExternally(url: string) {
     void Linking.openURL(url);
   }
   // Ignore javascript: and other schemes
+}
+
+function buildAuthedImageSource(
+  src: string,
+  settings: {
+    address: string;
+    apiKey?: string;
+    customHeaders?: Record<string, string>;
+  },
+) {
+  try {
+    const url = new URL(src, settings.address);
+    const appOrigin = new URL(settings.address).origin;
+    const shouldAttachHeaders =
+      url.origin === appOrigin && url.pathname.startsWith("/api/assets/");
+    return {
+      uri: url.toString(),
+      ...(shouldAttachHeaders
+        ? {
+            headers: buildApiHeaders(settings.apiKey, settings.customHeaders),
+          }
+        : {}),
+    };
+  } catch {
+    return { uri: src };
+  }
 }
 
 export function BookmarkLinkBrowserPreview({
@@ -105,6 +133,7 @@ export function BookmarkLinkReaderPreview({
 }: {
   bookmark: ZBookmark;
 }) {
+  const { settings } = useAppSettings();
   const { isDarkColorScheme: isDark } = useColorScheme();
   const { settings: readerSettings } = useReaderSettings();
   const api = useTRPC();
@@ -146,14 +175,29 @@ export function BookmarkLinkReaderPreview({
   });
 
   const [viewingImage, setViewingImage] = useState<string | null>(null);
+  const viewingImageSource = useMemo(
+    () =>
+      viewingImage ? buildAuthedImageSource(viewingImage, settings) : null,
+    [settings, viewingImage],
+  );
 
   const handleLinkPress = useCallback((url: string) => {
     openUrlExternally(url);
   }, []);
 
-  const handleImagePress = useCallback((src: string) => {
-    setViewingImage(src);
-  }, []);
+  const handleImagePress = useCallback(
+    (src: string) => {
+      const imageSource = buildAuthedImageSource(src, settings);
+      console.info("[KarakeepImage] Reader image opened", {
+        bookmarkId: bookmark.id,
+        src,
+        uri: imageSource.uri,
+        hasHeaders: "headers" in imageSource,
+      });
+      setViewingImage(src);
+    },
+    [bookmark.id, settings],
+  );
 
   if (isLoading) {
     return <FullPageSpinner />;
@@ -183,7 +227,7 @@ export function BookmarkLinkReaderPreview({
         imageIndex={0}
         onRequestClose={() => setViewingImage(null)}
         doubleTapToZoomEnabled={true}
-        images={viewingImage ? [{ uri: viewingImage }] : []}
+        images={viewingImageSource ? [viewingImageSource] : []}
       />
       {showBanner && (
         <View className="flex-row items-center gap-2 border-b border-border bg-background px-4 py-2">

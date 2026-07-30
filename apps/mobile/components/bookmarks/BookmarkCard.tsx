@@ -5,6 +5,7 @@ import { useWhoAmI } from "@karakeep/shared-react/hooks/users";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { Linking, View } from "react-native";
 
 import { useTRPC } from "@karakeep/shared-react/trpc";
@@ -26,13 +27,64 @@ import TagList from "./card/TagList";
 import { Divider } from "../ui/Divider";
 import ActionBar from "./card/ActionBar";
 
+function BookmarkLinkImage({
+  imageUrl,
+  className,
+  contentFit = "cover",
+  bookmarkId,
+}: {
+  imageUrl: ReturnType<typeof getBookmarkLinkImageUrl>;
+  className: string;
+  contentFit?: "cover" | "contain";
+  bookmarkId: string;
+}) {
+  const { settings } = useAppSettings();
+  const [imageError, setImageError] = useState(false);
+  const source =
+    imageUrl && !imageError
+      ? imageUrl.localAsset
+        ? {
+            uri: `${settings.address}${imageUrl.url}`,
+            headers: buildApiHeaders(settings.apiKey, settings.customHeaders),
+          }
+        : {
+            uri: imageUrl.url,
+          }
+      : // oxlint-disable-next-line no-require-imports
+        require("@/assets/blur.jpeg");
+
+  return (
+    <View className={className}>
+      <Image
+        source={source}
+        style={{ width: "100%", height: "100%" }}
+        contentFit={contentFit}
+        onError={(event) => {
+          if (!imageUrl || imageError) {
+            return;
+          }
+          console.warn("[KarakeepImage] Bookmark cover failed", {
+            bookmarkId,
+            source:
+              "url" in imageUrl
+                ? imageUrl.localAsset
+                  ? `${settings.address}${imageUrl.url}`
+                  : imageUrl.url
+                : null,
+            error: event.error,
+          });
+          setImageError(true);
+        }}
+      />
+    </View>
+  );
+}
+
 function useLinkCardContext({
   bookmark,
 }: {
   bookmark: ZBookmark;
 }): Omit<BookmarkCardContext, "isOwner" | "bookmark"> | undefined {
-  const { settings } = useAppSettings();
-
   if (bookmark.content.type !== BookmarkTypes.LINK) {
     return undefined;
   }
@@ -42,65 +94,20 @@ function useLinkCardContext({
 
   const imageUrl = getBookmarkLinkImageUrl(bookmark.content);
 
-  let contentComp;
-  if (imageUrl) {
-    contentComp = (
-      <View className="h-56 min-h-56 w-full">
-        <Image
-          source={
-            imageUrl.localAsset
-              ? {
-                  uri: `${settings.address}${imageUrl.url}`,
-                  headers: buildApiHeaders(
-                    settings.apiKey,
-                    settings.customHeaders,
-                  ),
-                }
-              : {
-                  uri: imageUrl.url,
-                }
-          }
-          style={{ width: "100%", height: "100%" }}
-          contentFit="cover"
-        />
-      </View>
-    );
-  } else {
-    contentComp = (
-      <View className="h-56 w-full overflow-hidden rounded-t-lg">
-        <Image
-          // oxlint-disable-next-line no-require-imports
-          source={require("@/assets/blur.jpeg")}
-          style={{ width: "100%", height: "100%" }}
-          contentFit="cover"
-        />
-      </View>
-    );
-  }
+  const contentComp = (
+    <BookmarkLinkImage
+      imageUrl={imageUrl}
+      className="h-56 min-h-56 w-full overflow-hidden rounded-t-lg"
+      bookmarkId={bookmark.id}
+    />
+  );
 
   const compactMedia = (
-    <View className="h-28 w-24 overflow-hidden rounded-lg bg-muted">
-      <Image
-        source={
-          imageUrl
-            ? imageUrl.localAsset
-              ? {
-                  uri: `${settings.address}${imageUrl.url}`,
-                  headers: buildApiHeaders(
-                    settings.apiKey,
-                    settings.customHeaders,
-                  ),
-                }
-              : {
-                  uri: imageUrl.url,
-                }
-            : // oxlint-disable-next-line no-require-imports
-              require("@/assets/blur.jpeg")
-        }
-        style={{ width: "100%", height: "100%" }}
-        contentFit="cover"
-      />
-    </View>
+    <BookmarkLinkImage
+      imageUrl={imageUrl}
+      className="h-28 w-24 overflow-hidden rounded-lg bg-muted"
+      bookmarkId={bookmark.id}
+    />
   );
 
   return {

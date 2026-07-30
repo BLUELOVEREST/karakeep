@@ -4,6 +4,7 @@ import * as Haptics from "expo-haptics";
 import * as ImagePicker from "expo-image-picker";
 import * as Clipboard from "expo-clipboard";
 import { router } from "expo-router";
+import { BookmarkListPickerModal } from "@/components/bookmarks/BookmarkListPicker";
 import BookmarkListHeader from "@/components/bookmarks/BookmarkListHeader";
 import UpdatingBookmarkList from "@/components/bookmarks/UpdatingBookmarkList";
 import InlineSearch from "@/components/search/InlineSearch";
@@ -17,13 +18,15 @@ import { MenuView } from "@react-native-menu/menu";
 import { Plus } from "lucide-react-native";
 import { toast as sonnerToast } from "sonner-native";
 import { useCreateBookmark } from "@karakeep/shared-react/hooks/bookmarks";
+import { useAddBookmarkToList } from "@karakeep/shared-react/hooks/lists";
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
 
-function useNewBookmarkActions(openNewBookmarkModal: () => void) {
+function useNewBookmarkActions() {
   const { settings } = useAppSettings();
   const { menuIconColor } = useMenuIconColors();
   const uploadToastIdRef = useRef<string | number | null>(null);
   const createBookmark = useCreateBookmark();
+  const { mutate: addToList } = useAddBookmarkToList();
 
   const { uploadAsset } = useUploadAsset(settings, {
     onSuccess: () => {
@@ -42,15 +45,14 @@ function useNewBookmarkActions(openNewBookmarkModal: () => void) {
     },
   });
 
-  const onPressAction = async ({
-    nativeEvent,
-  }: {
-    nativeEvent: { event: string };
-  }) => {
+  const runAction = async (event: string, listId: string | null) => {
     Haptics.selectionAsync();
-    if (nativeEvent.event === "new") {
-      openNewBookmarkModal();
-    } else if (nativeEvent.event === "library") {
+    if (event === "new") {
+      router.push({
+        pathname: "/dashboard/bookmarks/new",
+        params: listId ? { listId } : undefined,
+      });
+    } else if (event === "library") {
       try {
         uploadToastIdRef.current = sonnerToast.loading(
           "Opening photo library...",
@@ -74,6 +76,7 @@ function useNewBookmarkActions(openNewBookmarkModal: () => void) {
             type: asset.mimeType ?? "",
             name: asset.fileName ?? "",
             uri: asset.uri,
+            listId,
           });
         } else {
           sonnerToast.dismiss(uploadToastIdRef.current);
@@ -89,7 +92,7 @@ function useNewBookmarkActions(openNewBookmarkModal: () => void) {
           sonnerToast.error("Failed to open photo library");
         }
       }
-    } else if (nativeEvent.event === "clipboard") {
+    } else if (event === "clipboard") {
       if (createBookmark.isPending) return;
 
       const toastId = sonnerToast.loading("Reading clipboard...");
@@ -123,6 +126,9 @@ function useNewBookmarkActions(openNewBookmarkModal: () => void) {
               text: contents,
               source: "mobile",
             }));
+        if (listId) {
+          addToList({ bookmarkId: resp.id, listId });
+        }
         sonnerToast.success(resp.alreadyExists ? "Already exists" : "Saved!", {
           id: toastId,
         });
@@ -156,14 +162,14 @@ function useNewBookmarkActions(openNewBookmarkModal: () => void) {
     },
   ];
 
-  return { onPressAction, actions };
+  return { runAction, actions };
 }
 
 export default function Home() {
   const [searchActive, setSearchActive] = useState(false);
-  const { onPressAction, actions } = useNewBookmarkActions(() =>
-    router.push("/dashboard/bookmarks/new"),
-  );
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pendingAction, setPendingAction] = useState<string | null>(null);
+  const { runAction, actions } = useNewBookmarkActions();
 
   if (Platform.OS === "android" && searchActive) {
     return <InlineSearch onClose={() => setSearchActive(false)} />;
@@ -182,7 +188,10 @@ export default function Home() {
       <UpdatingBookmarkList query={{ archived: false }} />
       <FAB>
         <MenuView
-          onPressAction={onPressAction}
+          onPressAction={({ nativeEvent }) => {
+            setPendingAction(nativeEvent.event);
+            setPickerOpen(true);
+          }}
           actions={actions}
           shouldOpenOnLongPress={false}
         >
@@ -194,6 +203,23 @@ export default function Home() {
           </View>
         </MenuView>
       </FAB>
+      <BookmarkListPickerModal
+        label="Save to"
+        value={null}
+        open={pickerOpen}
+        onOpenChange={(open) => {
+          setPickerOpen(open);
+          if (!open) {
+            setPendingAction(null);
+          }
+        }}
+        onChange={(listId) => {
+          if (pendingAction) {
+            void runAction(pendingAction, listId);
+          }
+          setPendingAction(null);
+        }}
+      />
     </>
   );
 }

@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { View } from "react-native";
-import { router } from "expo-router";
+import { router, useLocalSearchParams } from "expo-router";
+import BookmarkListPicker from "@/components/bookmarks/BookmarkListPicker";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Text } from "@/components/ui/Text";
 import { useToast } from "@/components/ui/Toast";
 
 import { useCreateBookmark } from "@karakeep/shared-react/hooks/bookmarks";
+import { useAddBookmarkToList } from "@karakeep/shared-react/hooks/lists";
 import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
 
 const NoteEditorPage = () => {
@@ -16,10 +18,20 @@ const NoteEditorPage = () => {
 
   const [text, setText] = useState("");
   const [error, setError] = useState<string | undefined>();
+  const { listId: initialListId } = useLocalSearchParams<{
+    listId?: string;
+  }>();
+  const [selectedListId, setSelectedListId] = useState<string | null>(
+    initialListId ?? null,
+  );
   const { toast } = useToast();
+  const { mutate: addToList } = useAddBookmarkToList();
 
   const { mutate: createBookmark, isPending } = useCreateBookmark({
     onSuccess: (resp) => {
+      if (selectedListId) {
+        addToList({ bookmarkId: resp.id, listId: selectedListId });
+      }
       if (resp.alreadyExists) {
         toast({
           message: "Bookmark already exists",
@@ -70,6 +82,11 @@ const NoteEditorPage = () => {
         autoFocus
         autoCapitalize={"none"}
         textAlignVertical="top"
+      />
+      <BookmarkListPicker
+        value={selectedListId}
+        onChange={setSelectedListId}
+        disabled={isPending}
       />
       <Button onPress={onSubmit} disabled={isPending}>
         <Text>Save</Text>

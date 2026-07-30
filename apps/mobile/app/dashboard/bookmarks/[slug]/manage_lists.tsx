@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
 import { Stack, useLocalSearchParams } from "expo-router";
 import { RowSeparator } from "@/components/ui/GroupedList";
@@ -6,10 +6,14 @@ import { Text } from "@/components/ui/Text";
 import { useToast } from "@/components/ui/Toast";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useQuery } from "@tanstack/react-query";
-import { Check } from "lucide-react-native";
+import { Check, ChevronDown, ChevronRight } from "lucide-react-native";
 import { useHeaderHeight } from "expo-router/react-navigation";
 
 import type { ZBookmarkList } from "@karakeep/shared/types/lists";
+import {
+  filterAssignableListPaths,
+  listTreeRowsFromPaths,
+} from "@karakeep/shared/utils/listUtils";
 import {
   useAddBookmarkToList,
   useBookmarkLists,
@@ -22,6 +26,7 @@ const ListPickerPage = () => {
   const api = useTRPC();
   const { slug: bookmarkId } = useLocalSearchParams();
   const { colors } = useColorScheme();
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   if (typeof bookmarkId !== "string") {
     throw new Error("Unexpected param type");
@@ -80,10 +85,27 @@ const ListPickerPage = () => {
     );
   };
 
-  const { allPaths } = data ?? {};
-  const filteredPaths = allPaths
-    ?.filter((path) => path[path.length - 1].userRole !== "viewer")
-    .filter((path) => path[path.length - 1].type !== "smart");
+  const rows = useMemo(() => {
+    if (!data?.allPaths) {
+      return undefined;
+    }
+    return listTreeRowsFromPaths(
+      filterAssignableListPaths(data.allPaths),
+      expandedIds,
+    );
+  }, [data?.allPaths, expandedIds]);
+
+  const toggleExpanded = (listId: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(listId)) {
+        next.delete(listId);
+      } else {
+        next.add(listId);
+      }
+      return next;
+    });
+  };
 
   return (
     <>
@@ -102,15 +124,16 @@ const ListPickerPage = () => {
         }}
         className="flex-1 bg-background"
       >
-        {filteredPaths && filteredPaths.length > 0 ? (
+        {rows && rows.length > 0 ? (
           <View
             className="overflow-hidden rounded-xl bg-card"
             style={{ borderCurve: "continuous" }}
           >
-            {filteredPaths.map((path, index) => {
-              const listId = path[path.length - 1].id;
+            {rows.map((row, index) => {
+              const listId = row.id;
               const isLoading = isListLoading(listId);
               const isChecked = existingLists?.has(listId);
+              const isExpanded = expandedIds.has(listId);
 
               return (
                 <React.Fragment key={listId}>
@@ -118,13 +141,32 @@ const ListPickerPage = () => {
                   <Pressable
                     onPress={() => !isLoading && toggleList(listId)}
                     disabled={isLoading}
-                    className="flex-row items-center justify-between px-4 py-3 active:opacity-70"
+                    className="flex-row items-center justify-between py-3 pr-4 active:opacity-70"
+                    style={{ paddingLeft: 16 + row.depth * 18 }}
                   >
-                    <Text className="flex-1 pr-3" numberOfLines={1}>
-                      {path
-                        .map((item) => `${item.icon} ${item.name}`)
-                        .join(" / ")}
-                    </Text>
+                    <View className="min-w-0 flex-1 flex-row items-center gap-3">
+                      <Pressable
+                        disabled={!row.hasChildren}
+                        onPress={(event) => {
+                          event.stopPropagation();
+                          toggleExpanded(listId);
+                        }}
+                        className="h-7 w-7 items-center justify-center"
+                      >
+                        {row.hasChildren ? (
+                          isExpanded ? (
+                            <ChevronDown size={18} color={colors.grey} />
+                          ) : (
+                            <ChevronRight size={18} color={colors.grey} />
+                          )
+                        ) : (
+                          <View className="h-7 w-7" />
+                        )}
+                      </Pressable>
+                      <Text className="min-w-0 flex-1 pr-3" numberOfLines={1}>
+                        {row.item.icon} {row.item.name}
+                      </Text>
+                    </View>
                     {isLoading ? (
                       <ActivityIndicator size="small" />
                     ) : isChecked ? (
