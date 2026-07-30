@@ -1,13 +1,24 @@
-name: Android App Release Build
+name: Build Android APK
 
 on:
+  workflow_dispatch:
   push:
     tags:
-      - 'android/v[0-9]+.[0-9]+.[0-9]+-[0-9]+'
+      - "android-apk/v[0-9]+.[0-9]+.[0-9]+-eric.[0-9]+"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    env:
+      APP_VARIANT: development
+      EAS_SKIP_AUTO_FINGERPRINT: "1"
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=8192
+      SENTRY_DISABLE_AUTO_UPLOAD: "true"
+
     steps:
       - name: Setup repo
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -20,28 +31,46 @@ jobs:
       - name: Set up JDK 17
         uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
         with:
-          java-version: '17'
-          distribution: 'temurin'
+          java-version: "17"
+          distribution: temurin
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
 
-      - name: Setup Expo
-        uses: expo/expo-github-action@c7b66a9c327a43a8fa7c0158e7f30d6040d2481e # v8
-        with:
-          expo-version: latest
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install Android build tools
+        run: |
+          set -euo pipefail
+          sdkmanager \
+            "platforms;android-36" \
+            "build-tools;36.0.0" \
+            "ndk;27.1.12297006" \
+            "cmake;3.22.1"
 
-      - name: Build Android app
-        working-directory: apps/mobile
-        run: eas build --platform android --local --output ${{ github.workspace }}/app-release.aab
-        env:
-          EAS_SKIP_AUTO_FINGERPRINT: "1"
-          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      - name: Generate Android project
+        run: pnpm --filter @karakeep/mobile exec expo prebuild --platform android --no-install
 
-      - name: Upload AAB artifact
+      - name: Limit APK to arm64-v8a
+        working-directory: apps/mobile/android
+        run: |
+          set -euo pipefail
+          sed -i \
+            's/^reactNativeArchitectures=.*/reactNativeArchitectures=arm64-v8a/' \
+            gradle.properties
+
+      - name: Build release APK
+        working-directory: apps/mobile/android
+        run: ./gradlew assembleRelease --no-daemon --no-parallel
+
+      - name: Prepare artifact
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cp apps/mobile/android/app/build/outputs/apk/release/app-release.apk \
+            artifacts/karakeep-mobile-dev-arm64-v8a.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
-          name: karakeep-android
-          path: ${{ github.workspace }}/app-release.aab
+          name: karakeep-mobile-dev-arm64-v8a
+          path: artifacts/karakeep-mobile-dev-arm64-v8a.apk
+          if-no-files-found: error
