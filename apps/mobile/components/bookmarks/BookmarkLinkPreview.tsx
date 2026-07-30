@@ -53,7 +53,10 @@ function buildAuthedImageSource(
   },
 ) {
   try {
-    const url = new URL(src, settings.address);
+    const normalizedSrc = src.startsWith("file:///api/assets/")
+      ? src.replace("file://", "")
+      : src;
+    const url = new URL(normalizedSrc, settings.address);
     const appOrigin = new URL(settings.address).origin;
     const shouldAttachHeaders =
       url.origin === appOrigin && url.pathname.startsWith("/api/assets/");
