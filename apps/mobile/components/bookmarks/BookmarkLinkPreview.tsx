@@ -6,9 +6,9 @@ import {
   ShouldStartLoadRequest,
   WebViewSourceUri,
 } from "react-native-webview/lib/WebViewTypes";
-import * as WebBrowser from "expo-web-browser";
 import { Text } from "@/components/ui/Text";
 import { useAssetUrl } from "@/lib/hooks";
+import { openExternalUrl } from "@/lib/openExternalUrl";
 import { useReaderSettings, WEBVIEW_FONT_FAMILIES } from "@/lib/readerSettings";
 import useAppSettings from "@/lib/settings";
 import { useColorScheme } from "@/lib/useColorScheme";
@@ -33,7 +33,7 @@ import { PDFViewer } from "./PDFViewer";
 
 function openUrlExternally(url: string) {
   if (url.startsWith("http://") || url.startsWith("https://")) {
-    void WebBrowser.openBrowserAsync(url);
+    void openExternalUrl(url);
   } else if (
     url.startsWith("mailto:") ||
     url.startsWith("tel:") ||

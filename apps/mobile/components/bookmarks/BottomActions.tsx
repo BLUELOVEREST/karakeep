@@ -1,6 +1,6 @@
 import type { ToolbarActionId } from "@/lib/settings";
 import type { LucideIcon } from "lucide-react-native";
-import { Alert, Linking, Platform, Pressable, View } from "react-native";
+import { Alert, Platform, Pressable, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { GlassView } from "expo-glass-effect";
@@ -9,6 +9,7 @@ import { useRouter } from "expo-router";
 import { TailwindResolver } from "@/components/TailwindResolver";
 import { useToast } from "@/components/ui/Toast";
 import { shouldUseGlassPill } from "@/lib/ios";
+import { openExternalUrl } from "@/lib/openExternalUrl";
 import useAppSettings from "@/lib/settings";
 import { shareBookmark } from "@/lib/shareBookmark";
 import { useMenuIconColors } from "@/lib/useMenuIconColors";
@@ -249,7 +250,7 @@ function useToolbarActions(bookmark: ZBookmark) {
       shouldRender: bookmark.content.type === BookmarkTypes.LINK,
       onClick: () => {
         if (bookmark.content.type !== BookmarkTypes.LINK) return;
-        Linking.openURL(bookmark.content.url).catch(() => {
+        openExternalUrl(bookmark.content.url).catch(() => {
           toast({
             message: "Failed to open link",
             variant: "destructive",

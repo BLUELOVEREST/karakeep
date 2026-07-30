@@ -79,6 +79,27 @@ type BookmarkQueryReturnType = Awaited<
   ReturnType<typeof dummyDrizzleReturnType>
 >;
 
+function rewriteLocalAssetUrlsToSignedPublicUrls(
+  htmlContent: string | null | undefined,
+  bookmarkUserId: string,
+  assetIds: Set<string>,
+) {
+  if (!htmlContent || assetIds.size === 0) {
+    return htmlContent;
+  }
+
+  const expiresAt = getAlignedExpiry(3600, 900);
+  return htmlContent.replace(
+    /(?:file:\/\/)?\/api\/assets\/([^"'\s<>)?#&]+)/g,
+    (matchedUrl, assetId: string) => {
+      if (!assetIds.has(assetId)) {
+        return matchedUrl;
+      }
+      return Asset.getPublicSignedAssetUrl(assetId, bookmarkUserId, expiresAt);
+    },
+  );
+}
+
 export class BareBookmark {
   protected constructor(
     protected ctx: AuthedContext,
@@ -158,6 +179,9 @@ export class Bookmark extends BareBookmark {
       type: BookmarkTypes.UNKNOWN,
     };
     if (bookmark.link) {
+      const htmlContent = includeContent
+        ? await Bookmark.getBookmarkHtmlContent(link, bookmark.userId)
+        : null;
       content = {
         type: BookmarkTypes.LINK,
         screenshotAssetId: assets.find(
@@ -180,9 +204,11 @@ export class Bookmark extends BareBookmark {
         description: link.description,
         imageUrl: link.imageUrl,
         favicon: link.favicon,
-        htmlContent: includeContent
-          ? await Bookmark.getBookmarkHtmlContent(link, bookmark.userId)
-          : null,
+        htmlContent: rewriteLocalAssetUrlsToSignedPublicUrls(
+          htmlContent,
+          bookmark.userId,
+          new Set(assets.map((a) => a.id)),
+        ),
         crawledAt: link.crawledAt,
         crawlStatus: link.crawlStatus,
         author: link.author,
@@ -697,8 +723,10 @@ export class Bookmark extends BareBookmark {
     if (input.includeContent) {
       await Promise.all(
         bookmarksArr.map(async (bookmark) => {
+          if (bookmark.content.type !== BookmarkTypes.LINK) {
+            return;
+          }
           if (
-            bookmark.content.type === BookmarkTypes.LINK &&
             bookmark.content.contentAssetId &&
             !bookmark.content.htmlContent // Only fetch if not already inline
           ) {
@@ -716,6 +744,12 @@ export class Bookmark extends BareBookmark {
               );
             }
           }
+          bookmark.content.htmlContent =
+            rewriteLocalAssetUrlsToSignedPublicUrls(
+              bookmark.content.htmlContent,
+              bookmark.userId,
+              new Set(bookmark.assets.map((asset) => asset.id)),
+            );
         }),
       );
     }

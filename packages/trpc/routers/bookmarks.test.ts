@@ -2,6 +2,8 @@ import { eq } from "drizzle-orm";
 import { assert, beforeEach, describe, expect, test, vi } from "vitest";
 
 import {
+  assets,
+  AssetTypes,
   bookmarkLinks,
   bookmarks,
   rssFeedImportsTable,
@@ -870,6 +872,52 @@ describe("Bookmark Routes", () => {
     await expect(() =>
       api.getBookmark({ bookmarkId: "non-existent-id" }),
     ).rejects.toThrow(/Bookmark not found/);
+  });
+
+  test<CustomTestContext>("getBookmark rewrites local reader asset urls to signed public urls", async ({
+    apiCallers,
+    db,
+  }) => {
+    const api = apiCallers[0].bookmarks;
+    const createdBookmark = await api.createBookmark({
+      url: "https://example.com",
+      type: BookmarkTypes.LINK,
+    });
+    const assetId = "reader-image-asset";
+
+    await db.insert(assets).values({
+      id: assetId,
+      bookmarkId: createdBookmark.id,
+      userId: createdBookmark.userId,
+      assetType: AssetTypes.BOOKMARK_ASSET,
+      contentType: "image/jpeg",
+      size: 100,
+      fileName: "reader-image.jpg",
+    });
+    await db
+      .update(bookmarkLinks)
+      .set({
+        htmlContent: `<article><img src="/api/assets/${assetId}"><img src="file:///api/assets/${assetId}"></article>`,
+      })
+      .where(eq(bookmarkLinks.id, createdBookmark.id));
+
+    const bookmarkWithContent = await api.getBookmark({
+      bookmarkId: createdBookmark.id,
+      includeContent: true,
+    });
+
+    assert(bookmarkWithContent.content.type == BookmarkTypes.LINK);
+    expect(bookmarkWithContent.content.htmlContent).toContain(
+      `/public/assets/${assetId}?token=`,
+    );
+    expect(bookmarkWithContent.content.htmlContent).not.toContain(
+      `/api/assets/${assetId}`,
+    );
+    expect(
+      bookmarkWithContent.content.htmlContent?.match(
+        new RegExp(`/public/assets/${assetId}\\?token=`, "g"),
+      ),
+    ).toHaveLength(2);
   });
 
   test<CustomTestContext>("getBrokenLinks", async ({ apiCallers, db }) => {

@@ -1,4 +1,5 @@
 import { Text } from "@/components/ui/Text";
+import { openExternalUrl } from "@/lib/openExternalUrl";
 import useAppSettings from "@/lib/settings";
 import { buildApiHeaders } from "@/lib/utils";
 import { useWhoAmI } from "@karakeep/shared-react/hooks/users";
@@ -6,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Linking, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { useTRPC } from "@karakeep/shared-react/trpc";
 import type { ZBookmark } from "@karakeep/shared/types/bookmarks";
@@ -203,6 +204,32 @@ function CardLayout({ ctx }: { ctx: BookmarkCardContext }) {
 
 function ListLayout({ ctx }: { ctx: BookmarkCardContext }) {
   const hasCompactMedia = Boolean(ctx.compactMedia ?? ctx.media);
+  const mainContent = (
+    <View
+      className={
+        hasCompactMedia ? "ml-3 min-h-28 flex-1 gap-1.5 overflow-hidden" : ""
+      }
+    >
+      <View className="flex-row items-start gap-2">
+        <View className="min-w-0 flex-1 gap-0.5">
+          {ctx.title && (
+            <Text
+              className="text-base font-semibold leading-5 text-foreground"
+              numberOfLines={2}
+            >
+              {ctx.title}
+            </Text>
+          )}
+          <BookmarkCardContainer.FooterExtras />
+        </View>
+      </View>
+      <BookmarkCardContainer.CompactBody />
+      <BookmarkCardContainer.NoteSection />
+      <View className="h-7 justify-center overflow-hidden">
+        <TagList bookmark={ctx.bookmark} />
+      </View>
+    </View>
+  );
 
   return (
     <BookmarkCardContainer.Provider value={ctx}>
@@ -213,32 +240,12 @@ function ListLayout({ ctx }: { ctx: BookmarkCardContext }) {
               <BookmarkCardContainer.CompactMedia />
             </View>
           )}
-          <View
-            className={
-              hasCompactMedia
-                ? "ml-3 min-h-28 flex-1 gap-1.5 overflow-hidden"
-                : "gap-2"
-            }
-          >
-            <View className="flex-row items-start gap-2">
-              <View className="min-w-0 flex-1 gap-0.5">
-                {ctx.title && (
-                  <Text
-                    className="text-base font-semibold leading-5 text-foreground"
-                    numberOfLines={2}
-                    onPress={ctx.titleOnPress}
-                  >
-                    {ctx.title}
-                  </Text>
-                )}
-                <BookmarkCardContainer.FooterExtras />
-              </View>
-            </View>
-            <BookmarkCardContainer.CompactBody />
-            <BookmarkCardContainer.NoteSection />
-            <View className="h-7 justify-center overflow-hidden">
-              <TagList bookmark={ctx.bookmark} />
-            </View>
+          <View className={hasCompactMedia ? "flex-1" : "gap-2"}>
+            {ctx.titleOnPress ? (
+              <Pressable onPress={ctx.titleOnPress}>{mainContent}</Pressable>
+            ) : (
+              mainContent
+            )}
             <View className="flex-row justify-end pt-0.5">
               <ActionBar bookmark={ctx.bookmark} compact />
             </View>
@@ -283,7 +290,7 @@ export default function BookmarkCard({
       bookmark.content.type === BookmarkTypes.LINK &&
       settings.defaultBookmarkView === "externalBrowser"
     ) {
-      void Linking.openURL(bookmark.content.url).catch(() => {
+      void openExternalUrl(bookmark.content.url).catch(() => {
         toast({
           message: "Failed to open link",
           variant: "destructive",
