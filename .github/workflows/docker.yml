@@ -70,7 +70,7 @@ jobs:
         id: tags
         run: |
           set -euo pipefail
-          version_tag=$(echo "${GITHUB_REF_NAME}" | sed -E 's#^eric/v##')
+          version_tag=$(echo "${GITHUB_REF_NAME}" | sed -E 's#^eric/##')
           safe_ref=$(echo "${version_tag}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_.-]+/-/g')
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
           add_suffix() {
@@ -159,7 +159,7 @@ jobs:
           IS_TAG_OR_MANUAL_BUILD: ${{ github.event_name == 'workflow_dispatch' || github.event_name == 'push' }}
         run: |
           set -euo pipefail
-          version_tag=$(echo "${GITHUB_REF_NAME}" | sed -E 's#^eric/v##')
+          version_tag=$(echo "${GITHUB_REF_NAME}" | sed -E 's#^eric/##')
           safe_ref=$(echo "${version_tag}" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9_.-]+/-/g')
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
 
