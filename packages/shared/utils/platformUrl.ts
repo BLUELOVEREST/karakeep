@@ -69,6 +69,14 @@ export function getPlatformAppUrlCandidate(
         appUrl: `coolmarket://feed/${decodeURIComponent(feedId)}`,
       };
     }
+
+    const topic = firstMatch(pathAndQuery, [/\/t\/([^/?#]+)/]);
+    if (topic) {
+      return {
+        platform: "coolapk",
+        appUrl: `coolmarket://t/${topic}`,
+      };
+    }
   }
 
   return null;

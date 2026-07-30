@@ -18,6 +18,7 @@ export default function BookmarkHtmlHighlighterDom({
   onDeleteHighlight,
   onLinkPress,
   onImagePress,
+  isDark,
   readingProgressOffset,
   readingProgressAnchor,
   restoreReadingPosition,
@@ -33,6 +34,7 @@ export default function BookmarkHtmlHighlighterDom({
   onDeleteHighlight?: (highlight: Highlight) => void;
   onLinkPress?: (url: string) => void;
   onImagePress?: (src: string) => void;
+  isDark?: boolean;
   readingProgressOffset?: number | null;
   readingProgressAnchor?: string | null;
   restoreReadingPosition?: boolean;
@@ -174,6 +176,26 @@ export default function BookmarkHtmlHighlighterDom({
 
   return (
     <div style={{ maxWidth: "100vw", overflowX: "hidden" }}>
+      <style>
+        {`
+          .feed-link-tag {
+            display: inline-block;
+            margin: 0 2px;
+            padding: 2px 7px;
+            border-radius: 999px;
+            text-decoration: none;
+            font-weight: 500;
+            color: ${isDark ? "#93c5fd" : "#1d4ed8"};
+            background: ${isDark ? "rgba(37, 99, 235, 0.18)" : "rgba(219, 234, 254, 0.9)"};
+            border: 1px solid ${isDark ? "rgba(147, 197, 253, 0.25)" : "rgba(147, 197, 253, 0.55)"};
+          }
+
+          .feed-link-tag:active {
+            color: ${isDark ? "#bfdbfe" : "#1e40af"};
+            background: ${isDark ? "rgba(37, 99, 235, 0.28)" : "rgba(191, 219, 254, 0.95)"};
+          }
+        `}
+      </style>
       <ScrollProgressTracker
         onSavePosition={onSavePosition}
         onScrollPositionChange={onScrollPositionChange}

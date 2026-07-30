@@ -30,6 +30,17 @@ describe("getPlatformAppUrlCandidate", () => {
     });
   });
 
+  test("builds a Coolapk app url from a topic URL", () => {
+    expect(
+      getPlatformAppUrlCandidate(
+        "https://www.coolapk.com/t/%E5%BE%AE%E4%BF%A1?type=12",
+      ),
+    ).toEqual({
+      platform: "coolapk",
+      appUrl: "coolmarket://t/%E5%BE%AE%E4%BF%A1",
+    });
+  });
+
   test("returns null for unsupported URLs", () => {
     expect(getPlatformAppUrlCandidate("https://example.com/post/1")).toBeNull();
   });

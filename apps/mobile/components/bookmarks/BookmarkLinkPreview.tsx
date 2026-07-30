@@ -298,6 +298,7 @@ export function BookmarkLinkReaderPreview({
         onScrollPositionChange={onScrollPositionChange}
         onLinkPress={handleLinkPress}
         onImagePress={handleImagePress}
+        isDark={isDark}
         onHighlight={(h) =>
           createHighlight({
             startOffset: h.startOffset,
