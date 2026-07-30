@@ -24,6 +24,7 @@ import {
 import { useReadingProgress } from "@karakeep/shared-react/hooks/reading-progress";
 import { useTRPC } from "@karakeep/shared-react/trpc";
 import { BookmarkTypes, ZBookmark } from "@karakeep/shared/types/bookmarks";
+import { normalizeReaderHtmlAssetUrls } from "@karakeep/shared/utils/readerAssetUrl";
 
 import FullPageError from "../FullPageError";
 import FullPageSpinner from "../ui/FullPageSpinner";
@@ -193,14 +194,21 @@ export function BookmarkLinkReaderPreview({
       viewingImage ? buildAuthedImageSource(viewingImage, settings) : null,
     [settings, viewingImage],
   );
-  const htmlImageSources = useMemo(
+  const normalizedHtmlContent = useMemo(
     () =>
-      extractHtmlImageSources(bookmarkWithContent?.content.htmlContent ?? ""),
-    [bookmarkWithContent?.content.htmlContent],
+      normalizeReaderHtmlAssetUrls(
+        bookmarkWithContent?.content.htmlContent ?? "",
+        settings.address,
+      ),
+    [bookmarkWithContent?.content.htmlContent, settings.address],
+  );
+  const htmlImageSources = useMemo(
+    () => extractHtmlImageSources(normalizedHtmlContent),
+    [normalizedHtmlContent],
   );
 
   useEffect(() => {
-    if (!bookmarkWithContent?.content.htmlContent) {
+    if (!normalizedHtmlContent) {
       return;
     }
     console.info("[KarakeepImage] Reader HTML images", {
@@ -208,7 +216,7 @@ export function BookmarkLinkReaderPreview({
       count: htmlImageSources.length,
       sources: htmlImageSources,
     });
-  }, [bookmark.id, bookmarkWithContent?.content.htmlContent, htmlImageSources]);
+  }, [bookmark.id, normalizedHtmlContent, htmlImageSources]);
 
   const handleLinkPress = useCallback((url: string) => {
     openUrlExternally(url);
@@ -280,7 +288,7 @@ export function BookmarkLinkReaderPreview({
         </View>
       )}
       <BookmarkHtmlHighlighterDom
-        htmlContent={bookmarkWithContent.content.htmlContent ?? ""}
+        htmlContent={normalizedHtmlContent}
         contentStyle={contentStyle}
         highlights={highlights?.highlights ?? []}
         readingProgressOffset={readingProgressOffset}
