@@ -116,6 +116,62 @@ export default function BookmarkHtmlHighlighterDom({
     document.addEventListener("click", handleClick);
     return () => document.removeEventListener("click", handleClick);
   }, [onLinkPress, onImagePress]);
+
+  useEffect(() => {
+    const logImages = () => {
+      const images = [...document.querySelectorAll("img")];
+      console.info("[KarakeepImage] Reader DOM images", {
+        count: images.length,
+        sources: images.map((img) => ({
+          src: img.currentSrc || img.src,
+          attrSrc: img.getAttribute("src"),
+          complete: img.complete,
+          naturalWidth: img.naturalWidth,
+          naturalHeight: img.naturalHeight,
+        })),
+      });
+    };
+
+    const handleLoad = (event: Event) => {
+      if (!(event.target instanceof HTMLImageElement)) {
+        return;
+      }
+      const img = event.target as HTMLImageElement;
+      console.info("[KarakeepImage] Reader DOM image loaded", {
+        src: img.currentSrc || img.src,
+        attrSrc: img.getAttribute("src"),
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+      });
+    };
+
+    const handleError = (event: Event) => {
+      if (!(event.target instanceof HTMLImageElement)) {
+        return;
+      }
+      const img = event.target as HTMLImageElement;
+      console.warn("[KarakeepImage] Reader DOM image failed", {
+        src: img.currentSrc || img.src,
+        attrSrc: img.getAttribute("src"),
+        complete: img.complete,
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+      });
+    };
+
+    logImages();
+    document.addEventListener("load", handleLoad, true);
+    document.addEventListener("error", handleError, true);
+    const observer = new MutationObserver(logImages);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      document.removeEventListener("load", handleLoad, true);
+      document.removeEventListener("error", handleError, true);
+      observer.disconnect();
+    };
+  }, [htmlContent]);
+
   return (
     <div style={{ maxWidth: "100vw", overflowX: "hidden" }}>
       <ScrollProgressTracker

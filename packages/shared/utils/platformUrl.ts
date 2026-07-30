@@ -1,7 +1,7 @@
-export type PlatformAppUrlCandidate = {
+export interface PlatformAppUrlCandidate {
   platform: "xiaohongshu" | "douyin" | "coolapk";
   appUrl: string;
-};
+}
 
 function firstMatch(value: string, patterns: RegExp[]) {
   for (const pattern of patterns) {

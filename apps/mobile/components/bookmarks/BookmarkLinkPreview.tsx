@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Linking, Pressable, TouchableOpacity, View } from "react-native";
 import ImageView from "react-native-image-viewing";
 import WebView from "react-native-webview";
@@ -71,6 +71,16 @@ function buildAuthedImageSource(
   } catch {
     return { uri: src };
   }
+}
+
+function extractHtmlImageSources(htmlContent: string) {
+  const srcs = new Set<string>();
+  const imgSrcRegex = /<img\b[^>]*\bsrc=(["'])(.*?)\1/gi;
+  let match: RegExpExecArray | null;
+  while ((match = imgSrcRegex.exec(htmlContent))) {
+    srcs.add(match[2]);
+  }
+  return [...srcs];
 }
 
 export function BookmarkLinkBrowserPreview({
@@ -183,6 +193,22 @@ export function BookmarkLinkReaderPreview({
       viewingImage ? buildAuthedImageSource(viewingImage, settings) : null,
     [settings, viewingImage],
   );
+  const htmlImageSources = useMemo(
+    () =>
+      extractHtmlImageSources(bookmarkWithContent?.content.htmlContent ?? ""),
+    [bookmarkWithContent?.content.htmlContent],
+  );
+
+  useEffect(() => {
+    if (!bookmarkWithContent?.content.htmlContent) {
+      return;
+    }
+    console.info("[KarakeepImage] Reader HTML images", {
+      bookmarkId: bookmark.id,
+      count: htmlImageSources.length,
+      sources: htmlImageSources,
+    });
+  }, [bookmark.id, bookmarkWithContent?.content.htmlContent, htmlImageSources]);
 
   const handleLinkPress = useCallback((url: string) => {
     openUrlExternally(url);
