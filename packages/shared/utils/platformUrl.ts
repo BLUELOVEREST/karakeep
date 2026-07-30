@@ -66,7 +66,7 @@ export function getPlatformAppUrlCandidate(
     if (feedId) {
       return {
         platform: "coolapk",
-        appUrl: `coolmarket://feed/${decodeURIComponent(feedId)}`,
+        appUrl: `coolmarket://www.coolapk.com/feed/${decodeURIComponent(feedId)}`,
       };
     }
 
@@ -74,7 +74,7 @@ export function getPlatformAppUrlCandidate(
     if (topic) {
       return {
         platform: "coolapk",
-        appUrl: `coolmarket://t/${topic}`,
+        appUrl: `coolmarket://www.coolapk.com${parsedUrl.pathname}${parsedUrl.search}`,
       };
     }
   }

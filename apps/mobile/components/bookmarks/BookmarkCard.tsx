@@ -207,7 +207,9 @@ function ListLayout({ ctx }: { ctx: BookmarkCardContext }) {
   const mainContent = (
     <View
       className={
-        hasCompactMedia ? "ml-3 min-h-28 flex-1 gap-1.5 overflow-hidden" : ""
+        hasCompactMedia
+          ? "ml-3 min-h-28 flex-1 gap-1.5 overflow-hidden pb-8 pr-24"
+          : "gap-1.5 overflow-hidden pb-8 pr-24"
       }
     >
       <View className="flex-row items-start gap-2">
@@ -240,13 +242,13 @@ function ListLayout({ ctx }: { ctx: BookmarkCardContext }) {
               <BookmarkCardContainer.CompactMedia />
             </View>
           )}
-          <View className={hasCompactMedia ? "flex-1" : "gap-2"}>
+          <View className={hasCompactMedia ? "relative flex-1" : "relative"}>
             {ctx.titleOnPress ? (
               <Pressable onPress={ctx.titleOnPress}>{mainContent}</Pressable>
             ) : (
               mainContent
             )}
-            <View className="flex-row justify-end pt-0.5">
+            <View className="absolute bottom-0 right-0 flex-row justify-end">
               <ActionBar bookmark={ctx.bookmark} compact />
             </View>
           </View>

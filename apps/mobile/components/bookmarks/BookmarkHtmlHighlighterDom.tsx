@@ -175,9 +175,20 @@ export default function BookmarkHtmlHighlighterDom({
   }, [htmlContent]);
 
   return (
-    <div style={{ maxWidth: "100vw", overflowX: "hidden" }}>
+    <div
+      className={`karakeep-reader-content ${isDark ? "karakeep-reader-content-dark" : ""}`}
+      style={{ maxWidth: "100vw", overflowX: "hidden" }}
+    >
       <style>
         {`
+          .karakeep-reader-content-dark :is(article, section, div, p, span, li, strong, em)[style*="color"] {
+            color: inherit !important;
+          }
+
+          .karakeep-reader-content-dark [data-highlight="true"] {
+            color: #f3f4f6 !important;
+          }
+
           .feed-link-tag {
             display: inline-block;
             margin: 0 2px;
@@ -185,14 +196,31 @@ export default function BookmarkHtmlHighlighterDom({
             border-radius: 999px;
             text-decoration: none;
             font-weight: 500;
-            color: ${isDark ? "#93c5fd" : "#1d4ed8"};
+            color: ${isDark ? "#93c5fd" : "#1d4ed8"} !important;
             background: ${isDark ? "rgba(37, 99, 235, 0.18)" : "rgba(219, 234, 254, 0.9)"};
             border: 1px solid ${isDark ? "rgba(147, 197, 253, 0.25)" : "rgba(147, 197, 253, 0.55)"};
           }
 
           .feed-link-tag:active {
-            color: ${isDark ? "#bfdbfe" : "#1e40af"};
+            color: ${isDark ? "#bfdbfe" : "#1e40af"} !important;
             background: ${isDark ? "rgba(37, 99, 235, 0.28)" : "rgba(191, 219, 254, 0.95)"};
+          }
+
+          a,
+          a[data-href],
+          .feed-link-url,
+          .feed-link-uname {
+            color: ${isDark ? "#93c5fd" : "#1d4ed8"} !important;
+            text-decoration-color: ${isDark ? "rgba(147, 197, 253, 0.55)" : "rgba(29, 78, 216, 0.45)"};
+            text-underline-offset: 2px;
+            font-weight: 500;
+          }
+
+          a:active,
+          a[data-href]:active,
+          .feed-link-url:active,
+          .feed-link-uname:active {
+            color: ${isDark ? "#bfdbfe" : "#1e40af"} !important;
           }
         `}
       </style>

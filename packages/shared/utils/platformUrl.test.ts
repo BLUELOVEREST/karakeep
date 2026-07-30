@@ -26,7 +26,7 @@ describe("getPlatformAppUrlCandidate", () => {
       getPlatformAppUrlCandidate("https://www.coolapk.com/feed/123456"),
     ).toEqual({
       platform: "coolapk",
-      appUrl: "coolmarket://feed/123456",
+      appUrl: "coolmarket://www.coolapk.com/feed/123456",
     });
   });
 
@@ -37,7 +37,7 @@ describe("getPlatformAppUrlCandidate", () => {
       ),
     ).toEqual({
       platform: "coolapk",
-      appUrl: "coolmarket://t/%E5%BE%AE%E4%BF%A1",
+      appUrl: "coolmarket://www.coolapk.com/t/%E5%BE%AE%E4%BF%A1?type=12",
     });
   });
 

@@ -25,6 +25,7 @@ import { useReadingProgress } from "@karakeep/shared-react/hooks/reading-progres
 import { useTRPC } from "@karakeep/shared-react/trpc";
 import { BookmarkTypes, ZBookmark } from "@karakeep/shared/types/bookmarks";
 import { normalizeReaderHtmlAssetUrls } from "@karakeep/shared/utils/readerAssetUrl";
+import { normalizeReaderLinkUrl } from "@karakeep/shared/utils/readerLinkUrl";
 
 import FullPageError from "../FullPageError";
 import FullPageSpinner from "../ui/FullPageSpinner";
@@ -218,9 +219,15 @@ export function BookmarkLinkReaderPreview({
     });
   }, [bookmark.id, normalizedHtmlContent, htmlImageSources]);
 
-  const handleLinkPress = useCallback((url: string) => {
-    openUrlExternally(url);
-  }, []);
+  const handleLinkPress = useCallback(
+    (url: string) => {
+      const normalizedUrl = normalizeReaderLinkUrl(url, bookmark.content.url);
+      if (normalizedUrl) {
+        openUrlExternally(normalizedUrl);
+      }
+    },
+    [bookmark.content.url],
+  );
 
   const handleImagePress = useCallback(
     (src: string) => {
