@@ -185,8 +185,32 @@ export default function BookmarkHtmlHighlighterDom({
             color: #e5e7eb !important;
           }
 
+          .karakeep-reader-content-dark :is(h1, h2, h3, h4, h5, h6) {
+            color: #f9fafb !important;
+          }
+
           .karakeep-reader-content-dark [data-highlight="true"] {
             color: #f3f4f6 !important;
+          }
+
+          .karakeep-reader-content .xhs-gallery {
+            gap: 0 !important;
+            scroll-snap-type: x mandatory !important;
+          }
+
+          .karakeep-reader-content .xhs-slide {
+            box-sizing: border-box;
+            flex-basis: 100% !important;
+            max-width: 100% !important;
+            scroll-snap-align: center !important;
+            scroll-snap-stop: always;
+          }
+
+          .karakeep-reader-content .douyin-video video {
+            aspect-ratio: 9 / 16;
+            height: auto !important;
+            max-height: 80vh;
+            object-fit: contain;
           }
 
           .feed-link-tag {
