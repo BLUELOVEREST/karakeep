@@ -182,7 +182,7 @@ export default function BookmarkHtmlHighlighterDom({
       <style>
         {`
           .karakeep-reader-content-dark :is(article, section, div, p, span, li, strong, em)[style*="color"] {
-            color: inherit !important;
+            color: #e5e7eb !important;
           }
 
           .karakeep-reader-content-dark [data-highlight="true"] {
