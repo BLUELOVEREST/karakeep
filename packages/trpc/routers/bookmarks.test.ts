@@ -1154,8 +1154,14 @@ describe("Bookmark Routes", () => {
       expect(bookmarkWithContent.content.htmlContent).toContain(
         `/public/assets/${assetId}?token=`,
       );
+      expect(bookmarkWithContent.content.htmlContent).toContain(
+        `/api/public/assets/${assetId}?token=`,
+      );
       expect(bookmarkWithContent.content.htmlContent).not.toContain(
         `/api/assets/${assetId}`,
+      );
+      expect(bookmarkWithContent.content.htmlContent).not.toContain(
+        "localhost",
       );
       expect(
         bookmarkWithContent.content.htmlContent?.match(

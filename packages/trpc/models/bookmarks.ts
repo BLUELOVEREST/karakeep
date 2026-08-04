@@ -138,7 +138,17 @@ function rewriteLocalAssetUrlsToSignedPublicUrls(
       if (!assetIds.has(assetId)) {
         return matchedUrl;
       }
-      return Asset.getPublicSignedAssetUrl(assetId, bookmarkUserId, expiresAt);
+      const signedUrl = Asset.getPublicSignedAssetUrl(
+        assetId,
+        bookmarkUserId,
+        expiresAt,
+      );
+      try {
+        const url = new URL(signedUrl);
+        return `${url.pathname}${url.search}${url.hash}`;
+      } catch {
+        return signedUrl;
+      }
     },
   );
 }
@@ -812,7 +822,12 @@ export class Bookmark extends BareBookmark {
                 userId: bookmark.userId,
                 assetId: bookmark.content.contentAssetId,
               });
-              bookmark.content.htmlContent = asset.asset.toString("utf8");
+              bookmark.content.htmlContent =
+                rewriteLocalAssetUrlsToSignedPublicUrls(
+                  asset.asset.toString("utf8"),
+                  bookmark.userId,
+                  new Set(bookmark.assets.map((a) => a.id)),
+                );
             } catch (error) {
               // If asset reading fails, keep htmlContent as null
               console.warn(
