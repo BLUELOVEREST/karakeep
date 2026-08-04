@@ -4,7 +4,7 @@
 // assets). Also handles URLs that turn out to be plain assets (pdf/image) by
 // converting the link bookmark into an asset bookmark.
 import * as path from "node:path";
-import { eq } from "drizzle-orm";
+import { and, eq, inArray, like } from "drizzle-orm";
 import { crawlerStatusCodeCounter } from "metrics";
 import { getBookmarkDomain } from "network";
 import type { RunProxyConfig } from "network";
@@ -43,6 +43,7 @@ import {
 } from "../utils/metadataResolver";
 import {
   archiveWebpage,
+  downloadAndStoreReaderImage,
   downloadAndStoreFile,
   downloadAndStoreImage,
   storeHtmlContent,
@@ -51,6 +52,7 @@ import {
 } from "./assetStorage";
 import { crawlPage } from "./crawlPage";
 import { runParseSubprocess } from "./parseSubprocess";
+import { archiveReaderImages } from "./readerImageArchive";
 import { redactUrlCredentials, shouldRetryCrawlStatusCode } from "./utils";
 import { shouldSkipFullPageArchiveForVideoUrl } from "../videoUtils";
 
@@ -345,6 +347,13 @@ export async function crawlAndParseUrl(
         .where(eq(bookmarkLinks.id, bookmarkId));
 
       let readableContent = parsedReadableContent;
+      const oldReaderImageAssets = await db.query.assets.findMany({
+        where: and(
+          eq(assets.bookmarkId, bookmarkId),
+          eq(assets.assetType, AssetTypes.BOOKMARK_ASSET),
+          like(assets.fileName, "reader-image-%"),
+        ),
+      });
 
       const screenshotAssetInfo = await raceWith(
         storeScreenshot(screenshot, userId, jobId),
@@ -356,6 +365,32 @@ export async function crawlAndParseUrl(
         storePdf(pdf, userId, jobId),
         abortRace(abortSignal),
       );
+      abortSignal.throwIfAborted();
+
+      const readerImageArchiveResult = readableContent?.content
+        ? await archiveReaderImages({
+            htmlContent: readableContent.content,
+            pageUrl: browserUrl,
+            archiveImage: async (imageUrl, refererUrl) =>
+              downloadAndStoreReaderImage(
+                imageUrl,
+                refererUrl,
+                userId,
+                jobId,
+                abortSignal,
+                runProxy,
+              ),
+          })
+        : null;
+      if (readerImageArchiveResult) {
+        readableContent = {
+          ...readableContent!,
+          content: readerImageArchiveResult.htmlContent,
+        };
+        logger.info(
+          `[Crawler][${jobId}] Archived ${readerImageArchiveResult.archivedAssets.length} reader image(s) for bookmark ${bookmarkId}`,
+        );
+      }
       abortSignal.throwIfAborted();
 
       const htmlContentAssetInfo = await storeHtmlContent(
@@ -452,6 +487,39 @@ export async function crawlAndParseUrl(
           await updateAsset(oldAssets.imageAssetId, imageAssetInfo, txn);
           assetDeletionTasks.push(
             silentDeleteAsset(userId, oldAssets.imageAssetId),
+          );
+        }
+        if (oldReaderImageAssets.length > 0) {
+          await txn.delete(assets).where(
+            inArray(
+              assets.id,
+              oldReaderImageAssets.map((asset) => asset.id),
+            ),
+          );
+          assetDeletionTasks.push(
+            ...oldReaderImageAssets.map((asset) =>
+              silentDeleteAsset(userId, asset.id),
+            ),
+          );
+        }
+        for (const [index, readerImage] of (
+          readerImageArchiveResult?.archivedAssets ?? []
+        ).entries()) {
+          if (!readerImage.contentType || readerImage.size === undefined) {
+            continue;
+          }
+          await updateAsset(
+            undefined,
+            {
+              id: readerImage.assetId,
+              bookmarkId,
+              userId,
+              assetType: AssetTypes.BOOKMARK_ASSET,
+              contentType: readerImage.contentType,
+              size: readerImage.size,
+              fileName: `reader-image-${index + 1}`,
+            },
+            txn,
           );
         }
         if (htmlContentAssetInfo.result === "stored") {

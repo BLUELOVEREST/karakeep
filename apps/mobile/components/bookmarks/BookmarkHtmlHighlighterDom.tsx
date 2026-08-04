@@ -9,8 +9,6 @@ import BookmarkHTMLHighlighter from "@karakeep/shared-react/components/BookmarkH
 import ScrollProgressTracker from "@karakeep/shared-react/components/ScrollProgressTracker";
 
 export default function BookmarkHtmlHighlighterDom({
-  bookmarkId,
-  bookmarkUrl,
   htmlContent,
   contentStyle,
   isDark,
@@ -27,8 +25,6 @@ export default function BookmarkHtmlHighlighterDom({
   onSavePosition,
   onScrollPositionChange,
 }: {
-  bookmarkId?: string;
-  bookmarkUrl?: string;
   htmlContent: string;
   contentStyle?: React.CSSProperties;
   isDark: boolean;
@@ -54,82 +50,6 @@ export default function BookmarkHtmlHighlighterDom({
   }) => void;
   dom?: import("expo/dom").DOMProps;
 }) {
-  useEffect(() => {
-    const images = Array.from(document.images);
-    const sample = images.slice(0, 12).map((img, index) => ({
-      index,
-      src: img.getAttribute("src"),
-      currentSrc: img.currentSrc,
-      dataOriginal: img.getAttribute("data-original"),
-      complete: img.complete,
-      naturalWidth: img.naturalWidth,
-      naturalHeight: img.naturalHeight,
-    }));
-
-    console.log("[KarakeepImage] Reader DOM mounted", {
-      bookmarkId,
-      bookmarkUrl,
-      documentLocation: window.location.href,
-      documentBaseURI: document.baseURI,
-      documentReferrer: document.referrer,
-      htmlLength: htmlContent.length,
-      imageCount: images.length,
-      sample,
-    });
-  }, [bookmarkId, bookmarkUrl, htmlContent]);
-
-  useEffect(() => {
-    const images = Array.from(document.images);
-
-    const imageInfo = (img: HTMLImageElement, index: number) => ({
-      bookmarkId,
-      bookmarkUrl,
-      index,
-      src: img.src,
-      currentSrc: img.currentSrc,
-      attrSrc: img.getAttribute("src"),
-      dataOriginal: img.getAttribute("data-original"),
-      complete: img.complete,
-      naturalWidth: img.naturalWidth,
-      naturalHeight: img.naturalHeight,
-      documentBaseURI: document.baseURI,
-      documentReferrer: document.referrer,
-    });
-
-    const cleanups = images.map((img, index) => {
-      const handleLoad = () => {
-        console.log(
-          "[KarakeepImage] Reader image loaded",
-          imageInfo(img, index),
-        );
-      };
-      const handleError = () => {
-        console.warn(
-          "[KarakeepImage] Reader image failed",
-          imageInfo(img, index),
-        );
-      };
-
-      img.addEventListener("load", handleLoad);
-      img.addEventListener("error", handleError);
-
-      if (img.complete) {
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          handleLoad();
-        } else {
-          handleError();
-        }
-      }
-
-      return () => {
-        img.removeEventListener("load", handleLoad);
-        img.removeEventListener("error", handleError);
-      };
-    });
-
-    return () => cleanups.forEach((cleanup) => cleanup());
-  }, [bookmarkId, bookmarkUrl, htmlContent]);
-
   // Strip href from links so the browser treats them as regular selectable text
   // instead of activating native link gestures (iOS preview, Android drag).
   // The URL is preserved in data-href for our click handler.

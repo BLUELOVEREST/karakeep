@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Linking, Pressable, TouchableOpacity, View } from "react-native";
 import ImageView from "react-native-image-viewing";
 import WebView from "react-native-webview";
@@ -224,23 +224,6 @@ export function BookmarkLinkReaderPreview({
     [displayedLinkContent?.htmlContent, settings.address],
   );
 
-  useEffect(() => {
-    const imageSources = Array.from(
-      normalizedHtmlContent.matchAll(/<img\b[^>]*\bsrc=["']([^"']+)["']/gi),
-    )
-      .slice(0, 12)
-      .map((match) => match[1]);
-
-    console.log("[KarakeepImage] Reader HTML prepared", {
-      bookmarkId: bookmark.id,
-      bookmarkUrl,
-      serverAddress: settings.address,
-      htmlLength: normalizedHtmlContent.length,
-      imageCount: (normalizedHtmlContent.match(/<img\b/gi) ?? []).length,
-      imageSources,
-    });
-  }, [bookmark.id, bookmarkUrl, normalizedHtmlContent, settings.address]);
-
   const handleLinkPress = useCallback(
     (url: string) => {
       const normalizedUrl = normalizeReaderLinkUrl(url, bookmarkUrl);
@@ -303,8 +286,6 @@ export function BookmarkLinkReaderPreview({
         </View>
       )}
       <BookmarkHtmlHighlighterDom
-        bookmarkId={bookmark.id}
-        bookmarkUrl={bookmarkUrl}
         htmlContent={normalizedHtmlContent}
         contentStyle={contentStyle}
         isDark={isDark}

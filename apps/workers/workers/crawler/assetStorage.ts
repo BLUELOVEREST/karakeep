@@ -227,6 +227,7 @@ export async function downloadAndStoreFile(
   fileType: string,
   abortSignal: AbortSignal,
   runProxy: RunProxyConfig,
+  requestHeaders?: Record<string, string>,
 ) {
   return await withSpan(
     tracer,
@@ -253,6 +254,7 @@ export async function downloadAndStoreFile(
           url,
           {
             signal: abortSignal,
+            headers: requestHeaders,
           },
           runProxy,
         );
@@ -265,6 +267,12 @@ export async function downloadAndStoreFile(
         );
         if (!contentType) {
           throw new Error("No content type in the response");
+        }
+        if (
+          (fileType === "image" || fileType === "reader image") &&
+          !IMAGE_ASSET_TYPES.has(contentType)
+        ) {
+          throw new Error(`Unsupported image content type: ${contentType}`);
         }
 
         const assetId = newAssetId();
@@ -357,6 +365,28 @@ export async function downloadAndStoreImage(
     "image",
     abortSignal,
     runProxy,
+  );
+}
+
+export async function downloadAndStoreReaderImage(
+  url: string,
+  refererUrl: string,
+  userId: string,
+  jobId: string,
+  abortSignal: AbortSignal,
+  runProxy: RunProxyConfig,
+) {
+  return downloadAndStoreFile(
+    url,
+    userId,
+    jobId,
+    "reader image",
+    abortSignal,
+    runProxy,
+    {
+      Referer: refererUrl,
+      "User-Agent": "Mozilla/5.0 (compatible; KarakeepReaderImageArchiver/1.0)",
+    },
   );
 }
 
