@@ -258,8 +258,8 @@ export async function persistResolvedLinkContent(
       : null;
   const assetDeletionTasks: Promise<void>[] = [];
 
-  await db.transaction(async (txn) => {
-    await txn
+  await db.transaction((txn) => {
+    txn
       .update(bookmarkLinks)
       .set({
         url: args.content.finalUrl ?? undefined,
@@ -286,7 +286,7 @@ export async function persistResolvedLinkContent(
       .where(eq(bookmarkLinks.id, args.bookmarkId));
 
     if (htmlContentAssetInfo.result === "stored") {
-      await updateAsset(
+      updateAsset(
         args.oldContentAssetId,
         {
           id: htmlContentAssetInfo.assetId,
@@ -305,7 +305,7 @@ export async function persistResolvedLinkContent(
     }
 
     if (imageAssetInfo) {
-      await updateAsset(
+      updateAsset(
         args.oldImageAssetId,
         {
           id: imageAssetInfo.assetId,
@@ -321,14 +321,14 @@ export async function persistResolvedLinkContent(
         silentDeleteAsset(args.userId, args.oldImageAssetId),
       );
     } else if (archivedBannerAsset) {
-      await updateAsset(args.oldImageAssetId, archivedBannerAsset.dbAsset, txn);
+      updateAsset(args.oldImageAssetId, archivedBannerAsset.dbAsset, txn);
       assetDeletionTasks.push(
         silentDeleteAsset(args.userId, args.oldImageAssetId),
       );
     }
 
     if (archivedVideoAsset) {
-      await updateAsset(args.oldVideoAssetId, archivedVideoAsset.dbAsset, txn);
+      updateAsset(args.oldVideoAssetId, archivedVideoAsset.dbAsset, txn);
       assetDeletionTasks.push(
         silentDeleteAsset(args.userId, args.oldVideoAssetId),
       );
@@ -341,7 +341,7 @@ export async function persistResolvedLinkContent(
       )
       .map((asset) => asset.dbAsset);
     if (contentAssets.length > 0) {
-      await txn.insert(assets).values(contentAssets);
+      txn.insert(assets).values(contentAssets);
     }
   });
 
@@ -367,8 +367,8 @@ export async function persistResolvedLinkContent(
     );
 
     if (archiveResult) {
-      await db.transaction(async (txn) => {
-        await updateAsset(
+      await db.transaction((txn) => {
+        updateAsset(
           args.oldFullPageArchiveAssetId,
           {
             id: archiveResult.assetId,

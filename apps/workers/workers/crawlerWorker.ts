@@ -163,9 +163,8 @@ export class CrawlerWorker {
           const bookmarkId = job.data?.bookmarkId;
           if (bookmarkId && job.numRetriesLeft == 0) {
             const crawlError = classifyCrawlError(job.error);
-            await db.transaction(async (tx) => {
-              await tx
-                .update(bookmarkLinks)
+            await db.transaction((tx) => {
+              tx.update(bookmarkLinks)
                 .set({
                   crawlStatus: "failure",
                   crawlErrorSource: crawlError.source,
@@ -175,8 +174,7 @@ export class CrawlerWorker {
                   crawlErrorAt: new Date(),
                 })
                 .where(eq(bookmarkLinks.id, bookmarkId));
-              await tx
-                .update(bookmarks)
+              tx.update(bookmarks)
                 .set({
                   taggingStatus: null,
                 })
@@ -186,8 +184,7 @@ export class CrawlerWorker {
                     eq(bookmarks.taggingStatus, "pending"),
                   ),
                 );
-              await tx
-                .update(bookmarks)
+              tx.update(bookmarks)
                 .set({
                   summarizationStatus: null,
                 })
@@ -197,8 +194,7 @@ export class CrawlerWorker {
                     eq(bookmarks.summarizationStatus, "pending"),
                   ),
                 );
-              await tx
-                .update(bookmarks)
+              tx.update(bookmarks)
                 .set({
                   embeddingStatus: null,
                 })

@@ -108,8 +108,8 @@ export async function handleAsAssetBookmark(
         return;
       }
       const fileName = path.basename(new URL(url).pathname);
-      await db.transaction(async (trx) => {
-        await updateAsset(
+      await db.transaction((trx) => {
+        updateAsset(
           undefined,
           {
             id: downloaded.assetId,
@@ -122,7 +122,7 @@ export async function handleAsAssetBookmark(
           },
           trx,
         );
-        await trx.insert(bookmarkAssets).values({
+        trx.insert(bookmarkAssets).values({
           id: bookmarkId,
           assetType,
           assetId: downloaded.assetId,
@@ -131,11 +131,11 @@ export async function handleAsAssetBookmark(
           sourceUrl: url,
         });
         // Switch the type of the bookmark from LINK to ASSET
-        await trx
+        trx
           .update(bookmarks)
           .set({ type: BookmarkTypes.ASSET })
           .where(eq(bookmarks.id, bookmarkId));
-        await trx.delete(bookmarkLinks).where(eq(bookmarkLinks.id, bookmarkId));
+        trx.delete(bookmarkLinks).where(eq(bookmarkLinks.id, bookmarkId));
       });
       await AssetPreprocessingQueue.enqueue(
         {
@@ -448,7 +448,7 @@ export async function crawlAndParseUrl(
           ? (readableContent?.content ?? null)
           : null;
       readableContent = null;
-      await db.transaction(async (txn) => {
+      await db.transaction((txn) => {
         const readerImageError =
           readerImageArchiveResult?.failedImages[0] ?? null;
         const partialCrawlError = readerImageError
@@ -457,7 +457,7 @@ export async function crawlAndParseUrl(
               fallbackCode: "READER_IMAGE_ARCHIVE_FAILED",
             })
           : null;
-        await txn
+        txn
           .update(bookmarkLinks)
           .set({
             crawledAt: new Date(),
@@ -482,7 +482,7 @@ export async function crawlAndParseUrl(
           .where(eq(bookmarkLinks.id, bookmarkId));
 
         if (screenshotAssetInfo) {
-          await updateAsset(
+          updateAsset(
             oldAssets.screenshotAssetId,
             {
               id: screenshotAssetInfo.assetId,
@@ -500,7 +500,7 @@ export async function crawlAndParseUrl(
           );
         }
         if (pdfAssetInfo) {
-          await updateAsset(
+          updateAsset(
             oldAssets.pdfAssetId,
             {
               id: pdfAssetInfo.assetId,
@@ -518,13 +518,13 @@ export async function crawlAndParseUrl(
           );
         }
         if (imageAssetInfo) {
-          await updateAsset(oldAssets.imageAssetId, imageAssetInfo, txn);
+          updateAsset(oldAssets.imageAssetId, imageAssetInfo, txn);
           assetDeletionTasks.push(
             silentDeleteAsset(userId, oldAssets.imageAssetId),
           );
         }
         if (oldReaderImageAssets.length > 0) {
-          await txn.delete(assets).where(
+          txn.delete(assets).where(
             inArray(
               assets.id,
               oldReaderImageAssets.map((asset) => asset.id),
@@ -542,7 +542,7 @@ export async function crawlAndParseUrl(
           if (!readerImage.contentType || readerImage.size === undefined) {
             continue;
           }
-          await updateAsset(
+          updateAsset(
             undefined,
             {
               id: readerImage.assetId,
@@ -557,7 +557,7 @@ export async function crawlAndParseUrl(
           );
         }
         if (htmlContentAssetInfo.result === "stored") {
-          await updateAsset(
+          updateAsset(
             oldAssets.contentAssetId,
             {
               id: htmlContentAssetInfo.assetId,
@@ -575,9 +575,7 @@ export async function crawlAndParseUrl(
           );
         } else if (oldAssets.contentAssetId) {
           // Unlink the old content asset
-          await txn
-            .delete(assets)
-            .where(eq(assets.id, oldAssets.contentAssetId));
+          txn.delete(assets).where(eq(assets.id, oldAssets.contentAssetId));
           assetDeletionTasks.push(
             silentDeleteAsset(userId, oldAssets.contentAssetId),
           );
@@ -609,8 +607,8 @@ export async function crawlAndParseUrl(
               contentType,
             } = archiveResult;
 
-            await db.transaction(async (txn) => {
-              await updateAsset(
+            await db.transaction((txn) => {
+              updateAsset(
                 oldAssets.fullPageArchiveAssetId,
                 {
                   id: fullPageArchiveAssetId,

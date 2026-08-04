@@ -67,9 +67,8 @@ export class AssetPreprocessingWorker {
 
             const bookmarkId = job.data?.bookmarkId;
             if (bookmarkId && job.numRetriesLeft == 0) {
-              await db.transaction(async (tx) => {
-                await tx
-                  .update(bookmarks)
+              await db.transaction((tx) => {
+                tx.update(bookmarks)
                   .set({
                     taggingStatus: null,
                   })
@@ -79,8 +78,7 @@ export class AssetPreprocessingWorker {
                       eq(bookmarks.taggingStatus, "pending"),
                     ),
                   );
-                await tx
-                  .update(bookmarks)
+                tx.update(bookmarks)
                   .set({
                     summarizationStatus: null,
                   })
@@ -90,8 +88,7 @@ export class AssetPreprocessingWorker {
                       eq(bookmarks.summarizationStatus, "pending"),
                     ),
                   );
-                await tx
-                  .update(bookmarks)
+                tx.update(bookmarks)
                   .set({
                     embeddingStatus: null,
                   })

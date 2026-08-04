@@ -193,8 +193,8 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
         metadata: { contentType: imageContentType },
         quotaApproved,
       });
-      await db.transaction(async (txn) => {
-        await updateAsset(
+      await db.transaction((txn) => {
+        updateAsset(
           oldImageAssetId,
           {
             id: imageAssetId,
@@ -338,8 +338,8 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
       quotaApproved,
     });
 
-    await db.transaction(async (txn) => {
-      await updateAsset(
+    await db.transaction((txn) => {
+      updateAsset(
         oldVideoAssetId,
         {
           id: videoAssetId,

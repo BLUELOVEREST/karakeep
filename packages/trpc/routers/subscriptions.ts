@@ -155,8 +155,8 @@ export async function syncStripeDataToDatabase(
           });
           return;
         }
-        await db.transaction(async (trx) => {
-          await trx
+        await db.transaction((trx) => {
+          trx
             .update(subscriptions)
             .set({
               status: "canceled",
@@ -170,7 +170,7 @@ export async function syncStripeDataToDatabase(
             .where(eq(subscriptions.stripeCustomerId, customerId));
 
           // Update user quotas to free tier limits and disable browser crawling
-          await trx
+          trx
             .update(users)
             .set({
               bookmarkQuota: serverConfig.quotas.free.bookmarkLimit,
@@ -245,8 +245,8 @@ export async function syncStripeDataToDatabase(
         return;
       }
 
-      await db.transaction(async (trx) => {
-        await trx
+      await db.transaction((trx) => {
+        trx
           .update(subscriptions)
           .set(subData)
           .where(eq(subscriptions.stripeCustomerId, customerId));
@@ -254,7 +254,7 @@ export async function syncStripeDataToDatabase(
         if (subData.status === "active" || subData.status === "trialing") {
           // Enable paid tier quotas and browser crawling. A real subscription
           // supersedes a manually granted tier, so clear it.
-          await trx
+          trx
             .update(users)
             .set({
               bookmarkQuota: serverConfig.quotas.paid.bookmarkLimit,
@@ -266,7 +266,7 @@ export async function syncStripeDataToDatabase(
             .where(eq(users.id, existingSubscription.userId));
         } else {
           // Set free tier quotas and disable browser crawling
-          await trx
+          trx
             .update(users)
             .set({
               bookmarkQuota: serverConfig.quotas.free.bookmarkLimit,
