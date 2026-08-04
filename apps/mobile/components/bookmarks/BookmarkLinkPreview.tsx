@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Linking, Pressable, TouchableOpacity, View } from "react-native";
 import ImageView from "react-native-image-viewing";
 import WebView from "react-native-webview";
@@ -6,9 +6,14 @@ import {
   ShouldStartLoadRequest,
   WebViewSourceUri,
 } from "react-native-webview/lib/WebViewTypes";
+import QueryPageState from "@/components/QueryPageState";
 import { Text } from "@/components/ui/Text";
 import { useAssetUrl } from "@/lib/hooks";
 import { openExternalUrl } from "@/lib/openExternalUrl";
+import {
+  getOfflineLibraryScope,
+  useOfflineArticleContent,
+} from "@/lib/offlineLibrary";
 import { useReaderSettings, WEBVIEW_FONT_FAMILIES } from "@/lib/readerSettings";
 import useAppSettings from "@/lib/settings";
 import { useColorScheme } from "@/lib/useColorScheme";
@@ -27,8 +32,6 @@ import { BookmarkTypes, ZBookmark } from "@karakeep/shared/types/bookmarks";
 import { normalizeReaderHtmlAssetUrls } from "@karakeep/shared/utils/readerAssetUrl";
 import { normalizeReaderLinkUrl } from "@karakeep/shared/utils/readerLinkUrl";
 
-import FullPageError from "../FullPageError";
-import FullPageSpinner from "../ui/FullPageSpinner";
 import BookmarkAssetImage from "./BookmarkAssetImage";
 import BookmarkHtmlHighlighterDom from "./BookmarkHtmlHighlighterDom";
 import { PDFViewer } from "./PDFViewer";
@@ -73,16 +76,6 @@ function buildAuthedImageSource(
   } catch {
     return { uri: src };
   }
-}
-
-function extractHtmlImageSources(htmlContent: string) {
-  const srcs = new Set<string>();
-  const imgSrcRegex = /<img\b[^>]*\bsrc=(["'])(.*?)\1/gi;
-  let match: RegExpExecArray | null;
-  while ((match = imgSrcRegex.exec(htmlContent))) {
-    srcs.add(match[2]);
-  }
-  return [...srcs];
 }
 
 export function BookmarkLinkBrowserPreview({
@@ -148,15 +141,18 @@ export function BookmarkLinkReaderPreview({
 }: {
   bookmark: ZBookmark;
 }) {
-  const { settings } = useAppSettings();
   const { isDarkColorScheme: isDark } = useColorScheme();
   const { settings: readerSettings } = useReaderSettings();
+  const { settings } = useAppSettings();
   const api = useTRPC();
+  const offlineHtmlContent = useOfflineArticleContent(
+    getOfflineLibraryScope(settings),
+    bookmark.id,
+  );
 
   const {
     data: bookmarkWithContent,
     error,
-    isLoading,
     refetch,
   } = useQuery(
     api.bookmarks.getBookmark.queryOptions({
@@ -164,6 +160,23 @@ export function BookmarkLinkReaderPreview({
       includeContent: true,
     }),
   );
+  // The offline body is stored on its own, so fold it back into the bookmark
+  // this component was already handed rather than reading the saved metadata.
+  const displayedBookmarkWithContent = useMemo(() => {
+    if (bookmarkWithContent) {
+      return bookmarkWithContent;
+    }
+    if (
+      offlineHtmlContent === undefined ||
+      bookmark.content.type !== BookmarkTypes.LINK
+    ) {
+      return undefined;
+    }
+    return {
+      ...bookmark,
+      content: { ...bookmark.content, htmlContent: offlineHtmlContent },
+    };
+  }, [bookmark, bookmarkWithContent, offlineHtmlContent]);
 
   const { data: highlights } = useQuery(
     api.highlights.getForBookmark.queryOptions({
@@ -189,6 +202,13 @@ export function BookmarkLinkReaderPreview({
     bookmarkId: bookmark.id,
   });
 
+  const displayedLinkContent =
+    displayedBookmarkWithContent?.content.type === BookmarkTypes.LINK
+      ? displayedBookmarkWithContent.content
+      : null;
+  const bookmarkUrl =
+    bookmark.content.type === BookmarkTypes.LINK ? bookmark.content.url : "";
+
   const [viewingImage, setViewingImage] = useState<string | null>(null);
   const viewingImageSource = useMemo(
     () =>
@@ -198,60 +218,31 @@ export function BookmarkLinkReaderPreview({
   const normalizedHtmlContent = useMemo(
     () =>
       normalizeReaderHtmlAssetUrls(
-        bookmarkWithContent?.content.htmlContent ?? "",
+        displayedLinkContent?.htmlContent ?? "",
         settings.address,
       ),
-    [bookmarkWithContent?.content.htmlContent, settings.address],
+    [displayedLinkContent?.htmlContent, settings.address],
   );
-  const htmlImageSources = useMemo(
-    () => extractHtmlImageSources(normalizedHtmlContent),
-    [normalizedHtmlContent],
-  );
-
-  useEffect(() => {
-    if (!normalizedHtmlContent) {
-      return;
-    }
-    console.info("[KarakeepImage] Reader HTML images", {
-      bookmarkId: bookmark.id,
-      count: htmlImageSources.length,
-      sources: htmlImageSources,
-    });
-  }, [bookmark.id, normalizedHtmlContent, htmlImageSources]);
 
   const handleLinkPress = useCallback(
     (url: string) => {
-      const normalizedUrl = normalizeReaderLinkUrl(url, bookmark.content.url);
+      const normalizedUrl = normalizeReaderLinkUrl(url, bookmarkUrl);
       if (normalizedUrl) {
         openUrlExternally(normalizedUrl);
       }
     },
-    [bookmark.content.url],
+    [bookmarkUrl],
   );
 
-  const handleImagePress = useCallback(
-    (src: string) => {
-      const imageSource = buildAuthedImageSource(src, settings);
-      console.info("[KarakeepImage] Reader image opened", {
-        bookmarkId: bookmark.id,
-        src,
-        uri: imageSource.uri,
-        hasHeaders: "headers" in imageSource,
-      });
-      setViewingImage(src);
-    },
-    [bookmark.id, settings],
-  );
+  const handleImagePress = useCallback((src: string) => {
+    setViewingImage(src);
+  }, []);
 
-  if (isLoading) {
-    return <FullPageSpinner />;
+  if (!displayedBookmarkWithContent) {
+    return <QueryPageState error={error} onRetry={refetch} />;
   }
 
-  if (error) {
-    return <FullPageError error={error.message} onRetry={refetch} />;
-  }
-
-  if (bookmarkWithContent?.content.type !== BookmarkTypes.LINK) {
+  if (displayedBookmarkWithContent.content.type !== BookmarkTypes.LINK) {
     throw new Error("Wrong content type rendered");
   }
 
@@ -297,6 +288,7 @@ export function BookmarkLinkReaderPreview({
       <BookmarkHtmlHighlighterDom
         htmlContent={normalizedHtmlContent}
         contentStyle={contentStyle}
+        isDark={isDark}
         highlights={highlights?.highlights ?? []}
         readingProgressOffset={readingProgressOffset}
         readingProgressAnchor={readingProgressAnchor}
@@ -305,7 +297,6 @@ export function BookmarkLinkReaderPreview({
         onScrollPositionChange={onScrollPositionChange}
         onLinkPress={handleLinkPress}
         onImagePress={handleImagePress}
-        isDark={isDark}
         onHighlight={(h) =>
           createHighlight({
             startOffset: h.startOffset,

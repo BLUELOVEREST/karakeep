@@ -17,7 +17,12 @@ vi.mock("./shared", () => ({
   mcpServer: { tool: mockTool },
 }));
 
-import { deleteListHandler, getListHandler, updateListHandler } from "./lists";
+import {
+  deleteListHandler,
+  getListBookmarksHandler,
+  getListHandler,
+  updateListHandler,
+} from "./lists";
 
 const textOf = (result: CallToolResult): string => {
   const first = result.content[0];
@@ -38,6 +43,29 @@ const sampleList = {
   public: false,
   hasCollaborators: false,
   userRole: "owner" as const,
+};
+
+const sampleBookmark = {
+  id: "bookmark_1",
+  createdAt: "2026-01-01T00:00:00Z",
+  modifiedAt: null,
+  title: "Sample",
+  archived: false,
+  favourited: true,
+  taggingStatus: "success" as const,
+  summarizationStatus: null,
+  embeddingStatus: null,
+  note: null,
+  summary: null,
+  source: "api" as const,
+  userId: "user_1",
+  tags: [],
+  content: {
+    type: "text" as const,
+    text: "Saved text",
+    sourceUrl: null,
+  },
+  assets: [],
 };
 
 beforeEach(() => {
@@ -82,6 +110,44 @@ describe("get-list", () => {
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain("NOT_FOUND");
+  });
+});
+
+describe("get-list-bookmarks", () => {
+  it("uses the stable list id and forwards pagination options", async () => {
+    mockClient.GET.mockResolvedValueOnce({
+      data: { bookmarks: [sampleBookmark], nextCursor: "next_page" },
+      error: undefined,
+    });
+
+    const result = await getListBookmarksHandler({
+      listId: "list_123",
+      sortOrder: "asc",
+      limit: 10,
+      includeContent: true,
+    });
+
+    expect(mockClient.GET).toHaveBeenCalledWith("/lists/{listId}/bookmarks", {
+      params: {
+        path: { listId: "list_123" },
+        query: { sortOrder: "asc", limit: 10, includeContent: true },
+      },
+    });
+    const text = textOf(result);
+    expect(text).toContain("Bookmark ID: bookmark_1");
+    expect(text).toContain("Text: Saved text");
+    expect(text).toContain("Next page cursor: next_page");
+  });
+
+  it("surfaces a missing-list error", async () => {
+    mockClient.GET.mockResolvedValueOnce({
+      data: undefined,
+      error: { code: "NOT_FOUND", message: "List not found" },
+    });
+
+    const result = await getListBookmarksHandler({ listId: "missing" });
+
+    expect(result.isError).toBe(true);
   });
 });
 

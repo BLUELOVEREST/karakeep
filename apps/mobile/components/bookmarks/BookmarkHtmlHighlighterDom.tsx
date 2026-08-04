@@ -11,6 +11,7 @@ import ScrollProgressTracker from "@karakeep/shared-react/components/ScrollProgr
 export default function BookmarkHtmlHighlighterDom({
   htmlContent,
   contentStyle,
+  isDark,
   highlights,
   readOnly,
   onHighlight,
@@ -18,7 +19,6 @@ export default function BookmarkHtmlHighlighterDom({
   onDeleteHighlight,
   onLinkPress,
   onImagePress,
-  isDark,
   readingProgressOffset,
   readingProgressAnchor,
   restoreReadingPosition,
@@ -27,6 +27,7 @@ export default function BookmarkHtmlHighlighterDom({
 }: {
   htmlContent: string;
   contentStyle?: React.CSSProperties;
+  isDark: boolean;
   highlights?: Highlight[];
   readOnly?: boolean;
   onHighlight?: (highlight: Highlight) => void;
@@ -34,7 +35,6 @@ export default function BookmarkHtmlHighlighterDom({
   onDeleteHighlight?: (highlight: Highlight) => void;
   onLinkPress?: (url: string) => void;
   onImagePress?: (src: string) => void;
-  isDark?: boolean;
   readingProgressOffset?: number | null;
   readingProgressAnchor?: string | null;
   restoreReadingPosition?: boolean;
@@ -119,64 +119,9 @@ export default function BookmarkHtmlHighlighterDom({
     return () => document.removeEventListener("click", handleClick);
   }, [onLinkPress, onImagePress]);
 
-  useEffect(() => {
-    const logImages = () => {
-      const images = [...document.querySelectorAll("img")];
-      console.info("[KarakeepImage] Reader DOM images", {
-        count: images.length,
-        sources: images.map((img) => ({
-          src: img.currentSrc || img.src,
-          attrSrc: img.getAttribute("src"),
-          complete: img.complete,
-          naturalWidth: img.naturalWidth,
-          naturalHeight: img.naturalHeight,
-        })),
-      });
-    };
-
-    const handleLoad = (event: Event) => {
-      if (!(event.target instanceof HTMLImageElement)) {
-        return;
-      }
-      const img = event.target as HTMLImageElement;
-      console.info("[KarakeepImage] Reader DOM image loaded", {
-        src: img.currentSrc || img.src,
-        attrSrc: img.getAttribute("src"),
-        naturalWidth: img.naturalWidth,
-        naturalHeight: img.naturalHeight,
-      });
-    };
-
-    const handleError = (event: Event) => {
-      if (!(event.target instanceof HTMLImageElement)) {
-        return;
-      }
-      const img = event.target as HTMLImageElement;
-      console.warn("[KarakeepImage] Reader DOM image failed", {
-        src: img.currentSrc || img.src,
-        attrSrc: img.getAttribute("src"),
-        complete: img.complete,
-        naturalWidth: img.naturalWidth,
-        naturalHeight: img.naturalHeight,
-      });
-    };
-
-    logImages();
-    document.addEventListener("load", handleLoad, true);
-    document.addEventListener("error", handleError, true);
-    const observer = new MutationObserver(logImages);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return () => {
-      document.removeEventListener("load", handleLoad, true);
-      document.removeEventListener("error", handleError, true);
-      observer.disconnect();
-    };
-  }, [htmlContent]);
-
   return (
     <div
-      className={`karakeep-reader-content ${isDark ? "karakeep-reader-content-dark" : ""}`}
+      className={`karakeep-reader-content ${isDark ? "karakeep-reader-content-dark dark" : ""}`}
       style={{ maxWidth: "100vw", overflowX: "hidden" }}
     >
       <style>
@@ -258,6 +203,7 @@ export default function BookmarkHtmlHighlighterDom({
         progressBarStyle={{ position: "fixed" }}
       >
         <BookmarkHTMLHighlighter
+          className="dark:[&_*]:!text-inherit dark:[&_[data-highlight]]:!text-gray-600 dark:[&_a]:!text-[var(--tw-prose-links)]"
           htmlContent={htmlContent}
           highlights={highlights}
           readOnly={readOnly}

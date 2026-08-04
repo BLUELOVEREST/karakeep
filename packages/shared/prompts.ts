@@ -72,11 +72,11 @@ Analyze the TEXT_CONTENT below and suggest relevant tags that describe its key t
 - The tags must be in ${lang}.
 - Keep each tag short: ideally 1-3 words. Do not include parenthetical explanations, comma-separated examples, or long descriptive phrases inside a tag.
 - Prefer durable subject tags over one-off facts, examples, source organizations, page sections, or implementation details unless they are central to the whole item.
-- Do NOT generate any tags if the content is mainly:
+- Ignore any part of the content that is:
     - An error, unavailable, forbidden, unauthorized, not found, DNS, timeout, or service failure page
     - A Cloudflare/security check, CAPTCHA, bot check, anti-DDoS challenge, browser verification, or access-blocked page
     - Boilerplate content such as cookie consent, login walls, GDPR notices, navigation menus, or empty pages
-  In these cases, return an empty tags array. Do not tag the failure/interstitial page itself.
+  If useful metadata or other legitimate content remains, generate tags using only that information. Otherwise, return an empty tags array. Never tag the failure, interstitial, or boilerplate content itself.
 - Aim for 3-5 tags.
 - If there are no good tags, leave the array empty.
 ${curatedInstruction}

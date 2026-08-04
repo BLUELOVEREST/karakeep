@@ -34,7 +34,7 @@ const NoteEditorPage = () => {
       }
       if (resp.alreadyExists) {
         toast({
-          message: "Bookmark already exists",
+          message: "Bookmark saved again",
         });
       }
       setText("");

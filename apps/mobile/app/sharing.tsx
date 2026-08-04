@@ -94,11 +94,30 @@ function SaveBookmark({ setMode }: { setMode: (mode: Mode) => void }) {
   return null;
 }
 
+// Saving normally settles in well under a second. If we're still idle after
+// this long the save is wedged -- an empty share intent leaves nothing to
+// mutate, and a request against an unreachable server can hang far longer --
+// so offer a way out rather than an indefinite spinner.
+const IDLE_ESCAPE_HATCH_MS = 5000;
+
 export default function Sharing() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>({ type: "idle" });
+  const [showIdleEscapeHatch, setShowIdleEscapeHatch] = useState(false);
 
   const autoCloseTimeoutId = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (mode.type !== "idle") {
+      setShowIdleEscapeHatch(false);
+      return;
+    }
+    const timeoutId = setTimeout(
+      () => setShowIdleEscapeHatch(true),
+      IDLE_ESCAPE_HATCH_MS,
+    );
+    return () => clearTimeout(timeoutId);
+  }, [mode.type]);
 
   // Auto dismiss the modal after saving.
   useEffect(() => {
@@ -142,7 +161,27 @@ export default function Sharing() {
       {mode.type === "idle" && <SaveBookmark setMode={setMode} />}
 
       {/* Loading State */}
-      {mode.type === "idle" && <LoadingAnimation />}
+      {mode.type === "idle" && (
+        <View className="items-center gap-6">
+          <LoadingAnimation />
+          {showIdleEscapeHatch && (
+            <Animated.View
+              entering={FadeIn.duration(200)}
+              className="items-center gap-2"
+            >
+              <Text variant="body" className="text-muted-foreground">
+                Still saving...
+              </Text>
+              <Pressable
+                onPress={handleDismiss}
+                className="px-4 py-2 active:opacity-60"
+              >
+                <Text className="text-muted-foreground">Dismiss</Text>
+              </Pressable>
+            </Animated.View>
+          )}
+        </View>
+      )}
 
       {/* Success State */}
       {(mode.type === "success" || mode.type === "alreadyExists") && (
@@ -150,19 +189,17 @@ export default function Sharing() {
           entering={FadeIn.duration(200)}
           className="items-center gap-6"
         >
-          <SuccessAnimation isAlreadyExists={mode.type === "alreadyExists"} />
+          <SuccessAnimation />
 
           <Animated.View
             entering={FadeIn.delay(400).duration(300)}
             className="items-center gap-2"
           >
             <Text variant="title1" className="font-semibold text-foreground">
-              {mode.type === "alreadyExists" ? "Already Hoarded!" : "Hoarded!"}
+              {mode.type === "alreadyExists" ? "Hoarded again!" : "Hoarded!"}
             </Text>
             <Text variant="body" className="text-muted-foreground">
-              {mode.type === "alreadyExists"
-                ? "This item was saved before"
-                : "Saved to your collection"}
+              Saved to your collection
             </Text>
           </Animated.View>
 

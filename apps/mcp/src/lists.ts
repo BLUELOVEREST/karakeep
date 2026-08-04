@@ -1,25 +1,18 @@
 import { CallToolResult } from "@modelcontextprotocol/sdk/types";
 import { z } from "zod";
 
-import type { KarakeepAPISchemas } from "@karakeep/sdk";
 import {
   zEditBookmarkListSchema,
   zEditBookmarkListSchemaWithValidation,
 } from "@karakeep/shared/types/lists";
 
 import { karakeepClient, mcpServer } from "./shared";
-import { pickDefined, toMcpToolError } from "./utils";
-
-function formatList(list: KarakeepAPISchemas["List"]): string {
-  return `List ID: ${list.id}
-Name: ${list.name}
-Icon: ${list.icon}
-Type: ${list.type}
-Description: ${list.description ?? ""}
-Parent ID: ${list.parentId ?? ""}
-Query: ${list.query ?? ""}
-Public: ${list.public}`;
-}
+import {
+  compactBookmark,
+  compactList,
+  pickDefined,
+  toMcpToolError,
+} from "./utils";
 
 mcpServer.tool(
   "get-lists",
@@ -35,7 +28,7 @@ mcpServer.tool(
       content: [
         {
           type: "text",
-          text: res.data.lists.map(formatList).join("\n\n"),
+          text: res.data.lists.map(compactList).join("\n\n"),
         },
       ],
     };
@@ -61,7 +54,7 @@ export async function getListHandler({
     content: [
       {
         type: "text",
-        text: formatList(res.data),
+        text: compactList(res.data),
       },
     ],
   };
@@ -136,7 +129,7 @@ export async function updateListHandler(
         type: "text",
         text: `List ${res.data.id} updated.
 
-${formatList(res.data)}`,
+${compactList(res.data)}`,
       },
     ],
   };
@@ -253,6 +246,71 @@ mcpServer.tool(
       ],
     };
   },
+);
+
+export const getListBookmarksInputSchema = {
+  listId: z
+    .string()
+    .min(1)
+    .describe(`The id of the list whose bookmarks to retrieve.`),
+  sortOrder: z
+    .enum(["asc", "desc"])
+    .optional()
+    .describe(`Sort by creation date. Defaults to newest first.`),
+  limit: z
+    .number()
+    .int()
+    .min(1)
+    .optional()
+    .describe(`Maximum number of bookmarks to return per page.`),
+  cursor: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(`Cursor from a previous response to fetch the next page.`),
+  includeContent: z
+    .boolean()
+    .optional()
+    .describe(`Whether to include each bookmark's full content.`),
+};
+
+export type GetListBookmarksInput = z.infer<
+  z.ZodObject<typeof getListBookmarksInputSchema>
+>;
+
+export async function getListBookmarksHandler(
+  input: GetListBookmarksInput,
+): Promise<CallToolResult> {
+  const { listId, includeContent, ...query } = input;
+  const res = await karakeepClient.GET("/lists/{listId}/bookmarks", {
+    params: {
+      path: { listId },
+      query: pickDefined({ ...query, includeContent }),
+    },
+  });
+  if (!res.data) {
+    return toMcpToolError(res.error);
+  }
+  const cursorLine = res.data.nextCursor
+    ? `\n\nNext page cursor: ${res.data.nextCursor}`
+    : "";
+  const bookmarks =
+    res.data.bookmarks.length > 0
+      ? res.data.bookmarks
+          .map((bookmark) => compactBookmark(bookmark, { includeContent }))
+          .join("\n\n")
+      : "No bookmarks found in this list.";
+  return {
+    content: [{ type: "text", text: bookmarks + cursorLine }],
+  };
+}
+
+mcpServer.tool(
+  "get-list-bookmarks",
+  `List bookmarks in a list by its stable id. Smart lists are evaluated using their saved query.`,
+  getListBookmarksInputSchema,
+  { readOnlyHint: true },
+  getListBookmarksHandler,
 );
 
 mcpServer.tool(

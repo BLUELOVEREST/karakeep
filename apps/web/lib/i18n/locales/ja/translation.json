@@ -103,7 +103,7 @@
         },
         "embeddings": {
           "title": "埋め込みジョブ",
-          "description": "ブックマークのベクトル埋め込みを生成"
+          "description": "ブックマークのベクトル埋め込み生成"
         },
         "asset_preprocessing": {
           "title": "アセットのプレ処理ジョブ",
@@ -188,7 +188,7 @@
       "search_engine": "検索エンジン",
       "browser": "ブラウザ",
       "queue_system": "キューシステム",
-      "vector_store": "ベクトルストア",
+      "vector_store": "ベクターストア",
       "status": {
         "not_configured": "未構成",
         "connected": "接続済み",
@@ -214,7 +214,7 @@
       "owner_user_id": "オーナーユーザーID",
       "tagging_status": "タギングステータス",
       "summarization_status": "要約ステータス",
-      "embedding_status": "埋め込みの状態",
+      "embedding_status": "埋め込みステータス",
       "crawl_status": "クロールステータス",
       "crawl_status_code": "HTTPステータスコード",
       "crawled_at": "クロール日時",
@@ -228,7 +228,7 @@
       "action_failed": "アクション失敗",
       "recrawl_queued": "再クロールジョブをキューに追加しました",
       "reindex_queued": "再インデックスジョブをキューに追加しました",
-      "regenerate_embedding_queued": "埋め込みの再生成ジョブをキューに追加しました",
+      "regenerate_embedding_queued": "埋め込み再生成ジョブがキューに追加されました",
       "retag_queued": "再タグ付けジョブをキューに追加しました",
       "resummarize_queued": "再要約ジョブをキューに追加しました",
       "view": "表示",
@@ -449,6 +449,10 @@
           "users": {
             "label": "管理者: ユーザー",
             "description": "管理者用ユーザー管理にアクセスします。"
+          },
+          "subscriptions": {
+            "label": "管理: サブスクリプション",
+            "description": "ユーザーのサブスクリプションティアを管理します。"
           }
         }
       }
@@ -647,7 +651,8 @@
         "processing": "処理中",
         "staging": "ステージング",
         "running": "実行中",
-        "paused": "一時停止"
+        "paused": "一時停止",
+        "archived": "アーカイブ済み"
       },
       "badges": {
         "pending": "{{count}} 件が保留中です",
@@ -684,7 +689,8 @@
         "no_results": "このフィルターに該当する結果はありません。",
         "view_bookmark": "ブックマークを見る",
         "load_more": "もっと読み込む",
-        "no_title": "タイトルなし"
+        "no_title": "タイトルなし",
+        "archived_results": "アーカイブされたインポートセッションでは、個別のブックマーク結果は保持されなくなります。"
       },
       "finalize_dialog_title": "インポートセッションを完了する",
       "finalize_dialog_description": "「{{name}}」をバックグラウンド処理のキューに追加しますか？ステージングされたブックマークのインポートが開始されます。",
@@ -973,7 +979,18 @@
     "lists": "リスト",
     "feeds": "フィード",
     "is_from_source": "ソースは",
-    "is_not_from_source": "ソースではない"
+    "is_not_from_source": "ソースではない",
+    "mode_label": "検索モード",
+    "mode_label_description": "Karakeepが一致するブックマークを見つける方法を選択します。",
+    "mode_keyword": "キーワード",
+    "mode_keyword_description": "タイトル、内容、URL、メモ内の正確な語句と一致させます。ほぼ瞬時に実行されます。",
+    "mode_hybrid": "ハイブリッド",
+    "mode_hybrid_description": "正確な一致と関連する概念を組み合わせ、最適なバランスを実現します。キーワード検索よりも低速です。",
+    "mode_semantic": "セマンティック",
+    "mode_semantic_description": "共通の単語がなくても、概念的に類似するブックマークを見つけます。キーワード検索よりも低速です。",
+    "keyword_placeholder": "タイトル、テキスト、URL、タグを検索…",
+    "hybrid_placeholder": "単語または意味で検索…",
+    "semantic_placeholder": "記憶に残っている内容を入力…"
   },
   "preview": {
     "cached_content": "キャッシュされたコンテンツ",
@@ -1054,7 +1071,7 @@
     "bookmarks": {
       "delete_confirmation_title": "ブックマークを削除する？",
       "delete_confirmation_description": "このブックマークを削除してもよろしいですか？",
-      "bulk_delete_confirmation_description": "{{count}} 件のブックマークを本当に削除しますか？"
+      "bulk_delete_confirmation_description": "{{count}} 個のブックマークを削除してもよろしいですか？"
     }
   },
   "toasts": {
@@ -1183,22 +1200,22 @@
     "title": "キーボードショートカット",
     "sections": {
       "navigation": "ナビゲーション",
-      "actions": "操作",
+      "actions": "アクション",
       "selection": "選択",
       "other": "その他"
     },
-    "move_left": "左に移動",
-    "move_down": "下に移動",
-    "move_up": "上に移動",
-    "move_right": "右に移動",
+    "move_left": "左へ移動",
+    "move_down": "下へ移動",
+    "move_up": "上へ移動",
+    "move_right": "右へ移動",
     "open_bookmark": "ブックマークを開く",
     "clear_focus": "フォーカスを解除 / 一括編集を終了",
-    "toggle_favorite": "お気に入りを切り替え",
+    "toggle_favorite": "お気に入りの切り替え",
     "toggle_archive": "アーカイブ / アーカイブ解除",
     "delete_bookmark": "ブックマークを削除",
-    "toggle_selection": "選択を切り替え",
-    "select_all": "全選択",
-    "deselect_all": "全ての選択を解除",
+    "toggle_selection": "選択の切り替え",
+    "select_all": "すべて選択",
+    "deselect_all": "選択解除",
     "show_help": "キーボードショートカットを表示",
     "focus_search_alt": "検索にフォーカス"
   }

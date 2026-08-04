@@ -67,6 +67,9 @@ describe("compactBookmark", () => {
     });
     expect(out).toContain("Bookmark type: text");
     expect(out).toContain("Text: the actual stored text");
+    expect(out).toContain("Archived: false");
+    expect(out).toContain("Favourited: false");
+    expect(out).toContain("Tagging status: success");
   });
 
   it("does not emit a Text: line for link-type bookmarks", () => {
@@ -128,5 +131,24 @@ describe("compactBookmark", () => {
     );
     expect(out).toContain("Bookmark type: media");
     expect(out).toContain("Content: extracted pdf text");
+  });
+
+  it("renders attached asset ids, types, and file names", () => {
+    const out = compactBookmark({
+      ...base,
+      assets: [
+        {
+          id: "asset_2",
+          assetType: "screenshot",
+          fileName: "page.png",
+        },
+      ],
+      content: {
+        type: "link",
+        url: "https://example.com",
+      },
+    });
+
+    expect(out).toContain("Assets: asset_2 (screenshot, page.png)");
   });
 });

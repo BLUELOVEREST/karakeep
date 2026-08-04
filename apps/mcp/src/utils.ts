@@ -41,6 +41,31 @@ Name: ${tag.name}
 Bookmarks: ${tag.numBookmarks} (human: ${humanCount}, ai: ${aiCount})`;
 }
 
+export function compactList(list: KarakeepAPISchemas["List"]): string {
+  return `List ID: ${list.id}
+Name: ${list.name}
+Icon: ${list.icon}
+Type: ${list.type}
+Description: ${list.description ?? ""}
+Parent ID: ${list.parentId ?? ""}
+Query: ${list.query ?? ""}
+Public: ${list.public}
+Has collaborators: ${list.hasCollaborators}
+User role: ${list.userRole}`;
+}
+
+export function compactHighlight(
+  highlight: KarakeepAPISchemas["Highlight"],
+): string {
+  return `Highlight ID: ${highlight.id}
+Bookmark ID: ${highlight.bookmarkId}
+Created at: ${highlight.createdAt}
+Range: ${highlight.startOffset}-${highlight.endOffset}
+Color: ${highlight.color}
+Text: ${highlight.text ?? ""}
+Note: ${highlight.note ?? ""}`;
+}
+
 export function compactBookmark(
   bookmark: KarakeepAPISchemas["Bookmark"],
   options: { includeContent?: boolean } = {},
@@ -72,15 +97,33 @@ Source URL: ${bookmark.content.sourceUrl ?? ""}`;
     content = `Bookmark type: unknown`;
   }
 
+  const assets =
+    bookmark.assets.length > 0
+      ? bookmark.assets
+          .map(
+            (asset) =>
+              `${asset.id} (${asset.assetType}${asset.fileName ? `, ${asset.fileName}` : ""})`,
+          )
+          .join(", ")
+      : "none";
+
   return `Bookmark ID: ${bookmark.id}
   Created at: ${bookmark.createdAt}
+  Modified at: ${bookmark.modifiedAt ?? ""}
   Title: ${
     bookmark.title
       ? bookmark.title
       : ((bookmark.content.type === "link" ? bookmark.content.title : "") ?? "")
   }
+  Archived: ${bookmark.archived}
+  Favourited: ${bookmark.favourited}
+  Source: ${bookmark.source ?? ""}
+  Tagging status: ${bookmark.taggingStatus ?? ""}
+  Summarization status: ${bookmark.summarizationStatus ?? ""}
+  Embedding status: ${bookmark.embeddingStatus ?? ""}
   Summary: ${bookmark.summary ?? ""}
   Note: ${bookmark.note ?? ""}
   ${content}
-  Tags: ${bookmark.tags.map((t) => t.name).join(", ")}`;
+  Tags: ${bookmark.tags.map((t) => t.name).join(", ")}
+  Assets: ${assets}`;
 }

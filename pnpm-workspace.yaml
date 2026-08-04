@@ -41,6 +41,17 @@ minimumReleaseAgeExclude:
   - '@restatedev/restate-sdk-clients@1.15.1'
   - '@restatedev/restate-sdk-core@1.15.1'
   - '@restatedev/restate-sdk@1.15.1'
+  - '@next/bundle-analyzer@16.2.12'
+  - '@next/env@16.2.12'
+  - '@next/swc-darwin-arm64@16.2.12'
+  - '@next/swc-darwin-x64@16.2.12'
+  - '@next/swc-linux-arm64-gnu@16.2.12'
+  - '@next/swc-linux-arm64-musl@16.2.12'
+  - '@next/swc-linux-x64-gnu@16.2.12'
+  - '@next/swc-linux-x64-musl@16.2.12'
+  - '@next/swc-win32-arm64-msvc@16.2.12'
+  - '@next/swc-win32-x64-msvc@16.2.12'
+  - next@16.2.12
 
 # Pin vite so adding vitest as a direct devDep to apps/mcp doesn't hoist
 # vite 7.3.x, which surfaces a nested-vite peer mismatch inside
@@ -51,3 +62,12 @@ overrides:
   i18next-fs-backend: 2.6.6
   shell-quote: 1.8.4
   vite: 7.0.6
+  # React Native vendors a renderer built against one exact React version and
+  # asserts on it at runtime, so the whole workspace has to agree. React's
+  # experimental types also contain unique symbols, so separate @types/react
+  # versions are not structurally compatible. Keep these in sync with the
+  # versions used by the apps when bumping Expo or React.
+  react: 19.2.3
+  react-dom: 19.2.3
+  "@types/react": 19.2.15
+  "@types/react-dom": 19.2.3

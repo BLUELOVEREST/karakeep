@@ -2,15 +2,11 @@ import { CallToolResult } from "@modelcontextprotocol/sdk/types";
 import { z } from "zod";
 
 import { karakeepClient, mcpServer, turndownService } from "./shared";
-import { compactBookmark, toMcpToolError } from "./utils";
+import { compactBookmark, compactList, toMcpToolError } from "./utils";
 
 // Tools
-mcpServer.tool(
-  "search-bookmarks",
-  `Search for bookmarks matching a specific a query.
-`,
-  {
-    query: z.string().describe(`
+export const searchBookmarksInputSchema = {
+  query: z.string().describe(`
     By default, this will do a full-text search, but you can also use qualifiers to filter the results.
 You can search bookmarks using specific qualifiers. is:fav finds favorited bookmarks,
 is:archived searches archived bookmarks, is:tagged finds those with tags,
@@ -29,45 +25,75 @@ is:archived and (list:reading or #work)
 
 ### Combine text search with qualifiers
 machine learning is:fav`),
-    limit: z
-      .number()
-      .optional()
-      .describe(`The number of results to return in a single query.`)
-      .default(10),
-    nextCursor: z
-      .string()
-      .optional()
-      .describe(
-        `The next cursor to use for pagination. The value for this is returned from a previous call to this tool.`,
-      ),
-  },
-  async ({ query, limit, nextCursor }): Promise<CallToolResult> => {
-    const res = await karakeepClient.GET("/bookmarks/search", {
-      params: {
-        query: {
-          q: query,
-          limit: limit,
-          includeContent: false,
-          cursor: nextCursor,
-        },
+  limit: z
+    .number()
+    .optional()
+    .describe(`The number of results to return in a single query.`)
+    .default(10),
+  nextCursor: z
+    .string()
+    .optional()
+    .describe(
+      `The next cursor to use for pagination. The value for this is returned from a previous call to this tool.`,
+    ),
+  sortOrder: z
+    .enum(["asc", "desc", "relevance"])
+    .optional()
+    .describe(`Sort by relevance or creation date. Defaults to relevance.`),
+  searchMode: z
+    .enum(["fts", "semantic", "hybrid"])
+    .optional()
+    .describe(
+      `Search strategy. 'fts' uses full-text search, 'semantic' uses embeddings, and 'hybrid' combines both. Semantic and hybrid modes only support relevance sorting. Defaults to 'fts'.`,
+    )
+    .default("fts"),
+};
+
+export type SearchBookmarksInput = z.infer<
+  z.ZodObject<typeof searchBookmarksInputSchema>
+>;
+
+export async function searchBookmarksHandler({
+  query,
+  limit,
+  nextCursor,
+  sortOrder,
+  searchMode,
+}: SearchBookmarksInput): Promise<CallToolResult> {
+  const res = await karakeepClient.GET("/bookmarks/search", {
+    params: {
+      query: {
+        q: query,
+        limit: limit,
+        includeContent: false,
+        cursor: nextCursor,
+        sortOrder,
+        searchMode,
       },
-    });
-    if (!res.data) {
-      return toMcpToolError(res.error);
-    }
-    return {
-      content: [
-        {
-          type: "text",
-          text: `
+    },
+  });
+  if (!res.data) {
+    return toMcpToolError(res.error);
+  }
+  return {
+    content: [
+      {
+        type: "text",
+        text: `
 ${res.data.bookmarks.map((bm) => compactBookmark(bm)).join("\n\n")}
 
 Next cursor: ${res.data.nextCursor ? `'${res.data.nextCursor}'` : "no more pages"}
 `,
-        },
-      ],
-    };
-  },
+      },
+    ],
+  };
+}
+
+mcpServer.tool(
+  "search-bookmarks",
+  `Search for bookmarks matching a specific query using full-text, semantic, or hybrid search.`,
+  searchBookmarksInputSchema,
+  searchBookmarksHandler,
 );
 
 mcpServer.tool(
@@ -99,6 +125,45 @@ mcpServer.tool(
       ],
     };
   },
+);
+
+export const getBookmarkListsInputSchema = {
+  bookmarkId: z
+    .string()
+    .min(1)
+    .describe(`The id of the bookmark whose lists to retrieve.`),
+};
+
+export async function getBookmarkListsHandler({
+  bookmarkId,
+}: {
+  bookmarkId: string;
+}): Promise<CallToolResult> {
+  const res = await karakeepClient.GET("/bookmarks/{bookmarkId}/lists", {
+    params: { path: { bookmarkId } },
+  });
+  if (!res.data) {
+    return toMcpToolError(res.error);
+  }
+  return {
+    content: [
+      {
+        type: "text",
+        text:
+          res.data.lists.length > 0
+            ? res.data.lists.map(compactList).join("\n\n")
+            : "This bookmark is not in any lists.",
+      },
+    ],
+  };
+}
+
+mcpServer.tool(
+  "get-bookmark-lists",
+  `List every list that contains a bookmark.`,
+  getBookmarkListsInputSchema,
+  { readOnlyHint: true },
+  getBookmarkListsHandler,
 );
 
 mcpServer.tool(

@@ -12,6 +12,7 @@ export const zClientConfigSchema = z.object({
   auth: z.object({
     disableSignups: z.boolean(),
     disablePasswordAuth: z.boolean(),
+    oauthAutoRedirect: z.boolean(),
   }),
   turnstile: z
     .object({
@@ -27,6 +28,12 @@ export const zClientConfigSchema = z.object({
   chat: z.object({
     enabled: z.boolean(),
   }),
+  search: z.object({
+    semanticSearchEnabled: z.boolean(),
+  }),
+  stripe: z.object({
+    isConfigured: z.boolean(),
+  }),
   legal: z.object({
     termsOfServiceUrl: z.string().optional(),
     privacyPolicyUrl: z.string().optional(),
@@ -34,3 +41,5 @@ export const zClientConfigSchema = z.object({
   serverVersion: z.string().optional(),
   disableNewReleaseCheck: z.boolean(),
 });
+
+export type ZClientConfig = z.infer<typeof zClientConfigSchema>;

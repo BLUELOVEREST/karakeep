@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import { BookmarkTypes, ZBookmark } from "../types/bookmarks";
 import { toNetscapeFormat } from "./exporters";
 
-function linkBookmark(url: string, title = "title"): ZBookmark {
+function linkBookmark(
+  url: string,
+  title = "title",
+  tagNames: string[] = [],
+): ZBookmark {
   return {
     id: "id1",
     createdAt: new Date(1700000000000),
@@ -18,7 +22,11 @@ function linkBookmark(url: string, title = "title"): ZBookmark {
     summary: null,
     source: "api",
     userId: "user1",
-    tags: [],
+    tags: tagNames.map((name, i) => ({
+      id: `tag${i}`,
+      name,
+      attachedBy: "ai" as const,
+    })),
     assets: [],
     content: {
       type: BookmarkTypes.LINK,
@@ -55,5 +63,16 @@ describe("toNetscapeFormat", () => {
       linkBookmark("https://example.com/?a=1&b=2"),
     ]);
     expect(out).toContain('HREF="https://example.com/?a=1&amp;b=2"');
+  });
+
+  it("escapes HTML metacharacters in the TAGS attribute", () => {
+    const out = toNetscapeFormat([
+      linkBookmark("https://example.com/page", "innocent title", [
+        'pwn"><script>alert(document.domain)</script><a x="',
+      ]),
+    ]);
+    expect(out).not.toContain("<script>");
+    expect(out).toContain("&lt;script&gt;");
+    expect(out).toContain('TAGS="pwn&quot;&gt;&lt;script&gt;');
   });
 });

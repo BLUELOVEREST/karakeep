@@ -12,6 +12,7 @@ import { ShareIntentProvider, useShareIntent } from "expo-share-intent";
 import { StatusBar } from "expo-status-bar";
 import { StyledStack } from "@/components/navigation/stack";
 import SplashScreenController from "@/components/SplashScreenController";
+import { getFormSheetSurfaceOptions } from "@/lib/form-sheet-options";
 import { isIOS26 } from "@/lib/ios";
 import { Providers } from "@/lib/providers";
 import { useColorScheme, useInitialAndroidBarSync } from "@/lib/useColorScheme";
@@ -34,7 +35,8 @@ export default Sentry.wrap(function RootLayout() {
   useInitialAndroidBarSync();
   const router = useRouter();
   const { hasShareIntent } = useShareIntent();
-  const { colorScheme } = useColorScheme();
+  const { colorScheme, colors } = useColorScheme();
+  const formSheetSurfaceOptions = getFormSheetSurfaceOptions(colors.background);
 
   useEffect(() => {
     if (hasShareIntent) {
@@ -115,6 +117,7 @@ export default Sentry.wrap(function RootLayout() {
             <Stack.Screen
               name="server-address"
               options={{
+                ...formSheetSurfaceOptions,
                 title: "Server Address",
                 headerShown: true,
                 headerTransparent: false,
@@ -128,6 +131,7 @@ export default Sentry.wrap(function RootLayout() {
             <Stack.Screen
               name="test-connection"
               options={{
+                ...formSheetSurfaceOptions,
                 title: "Test Connection",
                 headerShown: true,
                 headerTransparent: false,
