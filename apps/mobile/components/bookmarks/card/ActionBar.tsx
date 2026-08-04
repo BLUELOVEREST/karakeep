@@ -16,6 +16,7 @@ import {
 
 import {
   useDeleteBookmark,
+  useRecrawlBookmark,
   useUpdateBookmark,
 } from "@karakeep/shared-react/hooks/bookmarks";
 import { useWhoAmI } from "@karakeep/shared-react/hooks/users";
@@ -65,6 +66,17 @@ export default function ActionBar({
   const { mutate: favouriteBookmark, variables } = useUpdateBookmark({
     onError,
   });
+
+  const { mutate: recrawlBookmark, isPending: isRecrawling } =
+    useRecrawlBookmark({
+      onSuccess: () => {
+        toast({
+          message: "The bookmark has been queued for refresh!",
+          showProgress: false,
+        });
+      },
+      onError,
+    });
 
   const { mutate: archiveBookmark, isPending: isArchivePending } =
     useUpdateBookmark({
@@ -138,6 +150,23 @@ export default function ActionBar({
         }),
       },
     );
+    if (bookmark.content.type === BookmarkTypes.LINK) {
+      menuActions.push({
+        id: "refresh",
+        title: "Refresh Crawl",
+        image: Platform.select({
+          ios: "arrow.clockwise",
+        }),
+        imageColor: Platform.select({
+          ios: menuIconColor,
+        }),
+        attributes: {
+          ...(isRecrawling && {
+            disabled: true,
+          }),
+        },
+      });
+    }
   }
 
   if (supportsOfflineReading) {
@@ -269,6 +298,8 @@ export default function ActionBar({
                 bookmarkId: bookmark.id,
                 archived: !bookmark.archived,
               });
+            } else if (nativeEvent.event === "refresh") {
+              recrawlBookmark({ bookmarkId: bookmark.id });
             } else if (nativeEvent.event === "manage_list") {
               router.push(`/dashboard/bookmarks/${bookmark.id}/manage_lists`);
             } else if (nativeEvent.event === "manage_tags") {

@@ -20,8 +20,12 @@ const mocks = vi.hoisted(() => {
 
   return {
     txn,
+    updateSet: vi.fn(() => ({
+      where: vi.fn(),
+    })),
     db: {
       transaction: vi.fn(async (callback) => callback(txn)),
+      update: vi.fn(),
     },
     archiveWebpage: vi.fn(),
     downloadAndStoreImage: vi.fn(),
@@ -75,11 +79,12 @@ vi.mock("../crawler/assetStorage", () => ({
 
 import { AssetTypes } from "@karakeep/db/schema";
 
-import { persistResolvedLinkContent } from "./persist";
+import { markLinkResolverFailure, persistResolvedLinkContent } from "./persist";
 
 describe("persistResolvedLinkContent", () => {
   afterEach(() => {
     vi.clearAllMocks();
+    mocks.db.update.mockReturnValue({ set: mocks.updateSet });
   });
 
   it("stores a self-contained full page archive for resolved link html when full page archive is enabled", async () => {
@@ -244,6 +249,34 @@ describe("persistResolvedLinkContent", () => {
         fileName: "video.mp4",
       }),
       mocks.txn,
+    );
+  });
+});
+
+describe("markLinkResolverFailure", () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+    mocks.db.update.mockReturnValue({ set: mocks.updateSet });
+  });
+
+  it("persists structured resolver crawl errors", async () => {
+    await markLinkResolverFailure("bookmark-1", {
+      source: "link_resolver",
+      code: "COOKIE_EXPIRED",
+      message: "[spider-xhs] Spider_XHS failed: cookie expired",
+      retryable: false,
+    });
+
+    expect(mocks.updateSet).toHaveBeenCalledWith(
+      expect.objectContaining({
+        crawlStatus: "failure",
+        description: "[spider-xhs] Spider_XHS failed: cookie expired",
+        crawlErrorSource: "link_resolver",
+        crawlErrorCode: "COOKIE_EXPIRED",
+        crawlErrorMessage: "[spider-xhs] Spider_XHS failed: cookie expired",
+        crawlErrorRetryable: false,
+        crawlErrorAt: expect.any(Date),
+      }),
     );
   });
 });

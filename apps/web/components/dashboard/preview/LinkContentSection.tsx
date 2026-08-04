@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -27,11 +27,14 @@ import {
   FileText,
   Info,
   LayoutPanelTop,
+  RotateCw,
   Video,
 } from "lucide-react";
 import { useQueryState } from "nuqs";
 import { ErrorBoundary } from "react-error-boundary";
+import { toast } from "sonner";
 
+import { useRecrawlBookmark } from "@karakeep/shared-react/hooks/bookmarks";
 import {
   BookmarkTypes,
   ZBookmark,
@@ -104,6 +107,64 @@ function VideoSection({ link }: { link: ZBookmarkedLink }) {
         </video>
       </div>
     </div>
+  );
+}
+
+function CrawlErrorNotice({ bookmark }: { bookmark: ZBookmark }) {
+  const { t } = useTranslation();
+  const crawlError =
+    bookmark.content.type === BookmarkTypes.LINK
+      ? bookmark.content.crawlError
+      : null;
+  const { mutate: recrawlBookmark, isPending } = useRecrawlBookmark({
+    onSuccess: () => {
+      toast.success(t("toasts.bookmarks.refetch"));
+    },
+    onError: () => {
+      toast.error(t("common.something_went_wrong"));
+    },
+  });
+
+  if (!crawlError) {
+    return null;
+  }
+
+  const isPartialResourceFailure = crawlError.source === "reader_image_archive";
+  const title = isPartialResourceFailure
+    ? "Some reader images were not saved offline"
+    : "Bookmark crawl needs attention";
+  const description =
+    crawlError.code === "COOKIE_EXPIRED"
+      ? "Cookie or login state appears to be expired. Update it, then retry the crawl."
+      : crawlError.code === "AUTH_REQUIRED"
+        ? "This source requires login state. Configure it, then retry the crawl."
+        : isPartialResourceFailure
+          ? "The bookmark was saved, but at least one reader image could not be archived."
+          : crawlError.message;
+
+  return (
+    <Alert
+      variant={isPartialResourceFailure ? "default" : "destructive"}
+      className="mx-3 mt-2 w-[calc(100%-1.5rem)]"
+    >
+      <AlertTriangle className="h-4 w-4" />
+      <AlertTitle className="flex items-center justify-between gap-3">
+        <span>{title}</span>
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={isPending}
+          onClick={() => recrawlBookmark({ bookmarkId: bookmark.id })}
+        >
+          <RotateCw className="mr-2 h-4 w-4" />
+          {t("actions.refresh")}
+        </Button>
+      </AlertTitle>
+      <AlertDescription className="break-words">
+        {description}
+        <span className="mt-1 block text-xs opacity-80">{crawlError.code}</span>
+      </AlertDescription>
+    </Alert>
   );
 }
 
@@ -310,6 +371,7 @@ export default function LinkContentSection({
           </Tooltip>
         )}
       </div>
+      <CrawlErrorNotice bookmark={bookmark} />
       <div className="min-h-0 w-full min-w-0 flex-1">{content}</div>
     </div>
   );

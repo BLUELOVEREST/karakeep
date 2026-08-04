@@ -51,6 +51,11 @@ import {
   storeScreenshot,
 } from "./assetStorage";
 import { crawlPage } from "./crawlPage";
+import {
+  classifyCrawlError,
+  CrawlError,
+  crawlErrorFromStatusCode,
+} from "./crawlError";
 import { runParseSubprocess } from "./parseSubprocess";
 import { archiveReaderImages } from "./readerImageArchive";
 import { redactUrlCredentials, shouldRetryCrawlStatusCode } from "./utils";
@@ -268,8 +273,17 @@ export async function crawlAndParseUrl(
 
       if (shouldRetryCrawlStatusCode(statusCode)) {
         if (numRetriesLeft > 0) {
-          throw new Error(
+          const crawlError = crawlErrorFromStatusCode(
+            statusCode,
             `[Crawler][${jobId}] Received status code ${statusCode}. Will retry crawl. Retries left: ${numRetriesLeft}`,
+          );
+          throw new CrawlError(
+            crawlError ?? {
+              source: "generic_crawler",
+              code: "UNKNOWN",
+              message: `[Crawler][${jobId}] Received status code ${statusCode}. Will retry crawl. Retries left: ${numRetriesLeft}`,
+              retryable: true,
+            },
           );
         }
         logger.info(
@@ -390,6 +404,11 @@ export async function crawlAndParseUrl(
         logger.info(
           `[Crawler][${jobId}] Archived ${readerImageArchiveResult.archivedAssets.length} reader image(s) for bookmark ${bookmarkId}`,
         );
+        if (readerImageArchiveResult.failedImages.length > 0) {
+          logger.warn(
+            `[Crawler][${jobId}] Failed to archive ${readerImageArchiveResult.failedImages.length} reader image(s) for bookmark ${bookmarkId}`,
+          );
+        }
       }
       abortSignal.throwIfAborted();
 
@@ -430,6 +449,14 @@ export async function crawlAndParseUrl(
           : null;
       readableContent = null;
       await db.transaction(async (txn) => {
+        const readerImageError =
+          readerImageArchiveResult?.failedImages[0] ?? null;
+        const partialCrawlError = readerImageError
+          ? classifyCrawlError(new Error(readerImageError.message), {
+              source: "reader_image_archive",
+              fallbackCode: "READER_IMAGE_ARCHIVE_FAILED",
+            })
+          : null;
         await txn
           .update(bookmarkLinks)
           .set({
@@ -444,6 +471,13 @@ export async function crawlAndParseUrl(
             readerViewReasons,
             readerViewClassifierVersion:
               readerViewAssessment?.classifierVersion ?? null,
+            crawlErrorSource: partialCrawlError?.source ?? null,
+            crawlErrorCode: partialCrawlError?.code ?? null,
+            crawlErrorMessage: partialCrawlError
+              ? `${partialCrawlError.message} (${readerImageError?.originalUrl})`
+              : null,
+            crawlErrorRetryable: partialCrawlError?.retryable ?? null,
+            crawlErrorAt: partialCrawlError ? new Date() : null,
           })
           .where(eq(bookmarkLinks.id, bookmarkId));
 

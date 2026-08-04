@@ -37,7 +37,10 @@ import {
   zAdminCreateUserSchema,
   zAdminJobModifiedWithinSecondsSchema,
 } from "@karakeep/shared/types/admin";
-import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
+import {
+  BookmarkTypes,
+  zCrawlErrorSchema,
+} from "@karakeep/shared/types/bookmarks";
 import { setUrlHostnameFromResolvedAddress } from "@karakeep/shared/utils/url";
 import { getVectorStoreClient } from "@karakeep/shared/vectorStore";
 
@@ -794,6 +797,7 @@ export const adminAppRouter = router({
             url: z.string(),
             crawlStatus: z.enum(["pending", "failure", "success"]),
             crawlStatusCode: z.number().nullable(),
+            crawlError: zCrawlErrorSchema.nullish(),
             crawledAt: z.date().nullable(),
             hasHtmlContent: z.boolean(),
             hasContentAsset: z.boolean(),

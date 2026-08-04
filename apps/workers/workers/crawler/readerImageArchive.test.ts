@@ -74,4 +74,28 @@ describe("archiveReaderImages", () => {
     );
     expect(result.archivedAssets).toEqual([]);
   });
+
+  it("records failed image downloads without failing the whole archive", async () => {
+    const archiveImage = vi
+      .fn()
+      .mockRejectedValue(new Error("Failed to download reader image: 403"));
+
+    const result = await archiveReaderImages({
+      htmlContent:
+        '<article><img src="https://cdn.example.test/one.webp"></article>',
+      pageUrl: "https://example.test/post/1",
+      archiveImage,
+    });
+
+    expect(result.htmlContent).toContain(
+      'src="https://cdn.example.test/one.webp"',
+    );
+    expect(result.archivedAssets).toEqual([]);
+    expect(result.failedImages).toEqual([
+      {
+        originalUrl: "https://cdn.example.test/one.webp",
+        message: "Failed to download reader image: 403",
+      },
+    ]);
+  });
 });

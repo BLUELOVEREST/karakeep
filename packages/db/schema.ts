@@ -312,6 +312,11 @@ export const bookmarkLinks = sqliteTable(
       enum: ["pending", "failure", "success"],
     }).default("pending"),
     crawlStatusCode: integer("crawlStatusCode").default(200),
+    crawlErrorSource: text("crawlErrorSource"),
+    crawlErrorCode: text("crawlErrorCode"),
+    crawlErrorMessage: text("crawlErrorMessage"),
+    crawlErrorRetryable: integer("crawlErrorRetryable", { mode: "boolean" }),
+    crawlErrorAt: integer("crawlErrorAt", { mode: "timestamp" }),
     // When the pre-crawl probe last extracted and stored this link's metadata.
     // Lets crawl retries skip re-fetching it.
     probeMetadataAt: integer("probeMetadataAt", { mode: "timestamp" }),

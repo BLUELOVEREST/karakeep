@@ -7,6 +7,11 @@ export interface ArchivedReaderImage {
   size?: number;
 }
 
+export interface FailedReaderImage {
+  originalUrl: string;
+  message: string;
+}
+
 type ArchiveImage = (
   imageUrl: string,
   refererUrl: string,
@@ -44,15 +49,17 @@ export async function archiveReaderImages({
 }): Promise<{
   htmlContent: string;
   archivedAssets: ArchivedReaderImage[];
+  failedImages: FailedReaderImage[];
 }> {
   if (!htmlContent) {
-    return { htmlContent, archivedAssets: [] };
+    return { htmlContent, archivedAssets: [], failedImages: [] };
   }
 
   const dom = new JSDOM(`<body>${htmlContent}</body>`, { url: pageUrl });
   const images = Array.from(dom.window.document.querySelectorAll("img[src]"));
   const archivedByUrl = new Map<string, string>();
   const archivedAssets: ArchivedReaderImage[] = [];
+  const failedImages: FailedReaderImage[] = [];
 
   for (const image of images) {
     const src = image.getAttribute("src");
@@ -67,8 +74,21 @@ export async function archiveReaderImages({
 
     let assetId = archivedByUrl.get(imageUrl);
     if (!assetId) {
-      const archived = await archiveImage(imageUrl, pageUrl);
+      let archived: Awaited<ReturnType<ArchiveImage>>;
+      try {
+        archived = await archiveImage(imageUrl, pageUrl);
+      } catch (error) {
+        failedImages.push({
+          originalUrl: imageUrl,
+          message: error instanceof Error ? error.message : String(error),
+        });
+        continue;
+      }
       if (!archived) {
+        failedImages.push({
+          originalUrl: imageUrl,
+          message: "Image archive returned no asset",
+        });
         continue;
       }
       assetId = archived.assetId;
@@ -83,5 +103,6 @@ export async function archiveReaderImages({
   return {
     htmlContent: dom.window.document.body.innerHTML,
     archivedAssets,
+    failedImages,
   };
 }

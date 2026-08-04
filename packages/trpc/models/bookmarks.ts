@@ -40,6 +40,8 @@ import { getAlignedExpiry } from "@karakeep/shared/signedTokens";
 import {
   BookmarkTypes,
   DEFAULT_NUM_BOOKMARKS_PER_PAGE,
+  zCrawlErrorCodeSchema,
+  zCrawlErrorSourceSchema,
   zGetBookmarksRequestSchema,
 } from "@karakeep/shared/types/bookmarks";
 import type {
@@ -48,6 +50,7 @@ import type {
   ZBookmarkContent,
   ZBookmarkReadableContent,
   ZBookmarkReadableContentFormat,
+  ZCrawlError,
   ZPublicBookmark,
 } from "@karakeep/shared/types/bookmarks";
 import type { ZCursor } from "@karakeep/shared/types/pagination";
@@ -86,6 +89,33 @@ async function dummyDrizzleReturnType() {
 type BookmarkQueryReturnType = Awaited<
   ReturnType<typeof dummyDrizzleReturnType>
 >;
+
+export function buildCrawlError(link: {
+  crawlErrorSource: string | null;
+  crawlErrorCode: string | null;
+  crawlErrorMessage: string | null;
+  crawlErrorRetryable: boolean | null;
+  crawlErrorAt: Date | null;
+}): ZCrawlError | null {
+  if (
+    !link.crawlErrorSource &&
+    !link.crawlErrorCode &&
+    !link.crawlErrorMessage
+  ) {
+    return null;
+  }
+
+  return {
+    source:
+      zCrawlErrorSourceSchema.safeParse(link.crawlErrorSource).data ??
+      "unknown",
+    code:
+      zCrawlErrorCodeSchema.safeParse(link.crawlErrorCode).data ?? "UNKNOWN",
+    message: link.crawlErrorMessage ?? "Unknown crawl error",
+    retryable: link.crawlErrorRetryable ?? false,
+    at: link.crawlErrorAt,
+  };
+}
 
 const turndownService = new TurndownService({
   bulletListMarker: "-",
@@ -235,6 +265,7 @@ export class Bookmark extends BareBookmark {
         }),
         crawledAt: link.crawledAt,
         crawlStatus: link.crawlStatus,
+        crawlError: buildCrawlError(link),
         author: link.author,
         publisher: link.publisher,
         datePublished: link.datePublished,
@@ -379,6 +410,7 @@ export class Bookmark extends BareBookmark {
         url: bookmark.link.url,
         crawlStatus: bookmark.link.crawlStatus ?? "pending",
         crawlStatusCode: bookmark.link.crawlStatusCode,
+        crawlError: buildCrawlError(bookmark.link),
         crawledAt: bookmark.link.crawledAt,
         hasHtmlContent: !!bookmark.link.htmlContent,
         hasContentAsset: !!bookmark.link.contentAssetId,
@@ -654,6 +686,7 @@ export class Bookmark extends BareBookmark {
                   row.assets?.assetType === AssetTypes.LINK_SCREENSHOT,
               }),
               crawlStatus: row.bookmarkLinks.crawlStatus,
+              crawlError: buildCrawlError(row.bookmarkLinks),
               crawledAt: row.bookmarkLinks.crawledAt,
               author: row.bookmarkLinks.author,
               publisher: row.bookmarkLinks.publisher,

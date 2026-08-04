@@ -20,6 +20,7 @@ import {
   Ellipsis,
   Globe,
   Info,
+  RefreshCw,
   ShareIcon,
   Star,
   Tag,
@@ -28,6 +29,7 @@ import {
 
 import {
   useDeleteBookmark,
+  useRecrawlBookmark,
   useUpdateBookmark,
 } from "@karakeep/shared-react/hooks/bookmarks";
 import { useWhoAmI } from "@karakeep/shared-react/hooks/users";
@@ -76,6 +78,12 @@ export const TOOLBAR_ACTION_REGISTRY: Record<
     render: (b) => (b.archived ? "Un-archive" : "Archive"),
     Icon: Archive,
     sfSymbol: "archivebox",
+  },
+  refresh: {
+    label: "Refresh Crawl",
+    render: () => "Refresh Crawl",
+    Icon: RefreshCw,
+    sfSymbol: "arrow.clockwise",
   },
   browser: {
     label: "Open in Browser",
@@ -148,6 +156,23 @@ function useToolbarActions(bookmark: ZBookmark) {
         router.back();
         toast({
           message: `The bookmark has been ${resp.archived ? "archived" : "un-archived"}!`,
+          showProgress: false,
+        });
+      },
+      onError: () => {
+        toast({
+          message: "Something went wrong",
+          variant: "destructive",
+          showProgress: false,
+        });
+      },
+    });
+
+  const { mutate: recrawlBookmark, isPending: isRecrawling } =
+    useRecrawlBookmark({
+      onSuccess: () => {
+        toast({
+          message: "The bookmark has been queued for refresh!",
           showProgress: false,
         });
       },
@@ -243,6 +268,15 @@ function useToolbarActions(bookmark: ZBookmark) {
         });
       },
       disabled: isArchivePending,
+    },
+    refresh: {
+      id: "refresh",
+      icon: makeIcon(RefreshCw),
+      shouldRender: isOwner && bookmark.content.type === BookmarkTypes.LINK,
+      onClick: () => {
+        recrawlBookmark({ bookmarkId: bookmark.id });
+      },
+      disabled: isRecrawling,
     },
     browser: {
       id: "browser",

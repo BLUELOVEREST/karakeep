@@ -49,6 +49,11 @@ import {
   crawlAndParseUrl,
   handleAsAssetBookmark,
 } from "./crawler/crawlAndParse";
+import {
+  classifyCrawlError,
+  CrawlError,
+  linkResolverCrawlError,
+} from "./crawler/crawlError";
 import { buildLinkResolverRegistry } from "./linkResolver/registry";
 import {
   markLinkResolverFailure,
@@ -157,11 +162,17 @@ export class CrawlerWorker {
           );
           const bookmarkId = job.data?.bookmarkId;
           if (bookmarkId && job.numRetriesLeft == 0) {
+            const crawlError = classifyCrawlError(job.error);
             await db.transaction(async (tx) => {
               await tx
                 .update(bookmarkLinks)
                 .set({
                   crawlStatus: "failure",
+                  crawlErrorSource: crawlError.source,
+                  crawlErrorCode: crawlError.code,
+                  crawlErrorMessage: crawlError.message,
+                  crawlErrorRetryable: crawlError.retryable,
+                  crawlErrorAt: new Date(),
                 })
                 .where(eq(bookmarkLinks.id, bookmarkId));
               await tx
@@ -447,10 +458,23 @@ async function runCrawler(
           ? resolved.reason
           : `[${linkResolverProvider.id}] ${resolved.reason}`;
       if (resolved.status === "failure" && resolved.retryable) {
-        throw new Error(reason);
+        throw new CrawlError(
+          linkResolverCrawlError(linkResolverProvider.id, {
+            reason: resolved.reason,
+            retryable: resolved.retryable,
+          }),
+        );
       }
       logger.warn(`[Crawler][${jobId}] Link resolver failed: ${reason}`);
-      await markLinkResolverFailure(bookmarkId, reason);
+      await markLinkResolverFailure(
+        bookmarkId,
+        resolved.status === "failure"
+          ? linkResolverCrawlError(linkResolverProvider.id, {
+              reason: resolved.reason,
+              retryable: resolved.retryable,
+            })
+          : reason,
+      );
       return { status: "failed" };
     }
   }

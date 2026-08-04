@@ -1197,6 +1197,56 @@ describe("Bookmark Routes", () => {
     expect(emptyResult.bookmarks.length).toEqual(0);
   });
 
+  test<CustomTestContext>("recrawlBookmark marks link pending and clears crawl error", async ({
+    apiCallers,
+    db,
+  }) => {
+    const api = apiCallers[0].bookmarks;
+    const queueMocks = getTestQueueMocks();
+    const bookmark = await api.createBookmark({
+      url: "https://example.com/retry-me",
+      type: BookmarkTypes.LINK,
+    });
+
+    await db
+      .update(bookmarkLinks)
+      .set({
+        crawlStatus: "failure",
+        crawlErrorSource: "link_resolver",
+        crawlErrorCode: "COOKIE_EXPIRED",
+        crawlErrorMessage: "cookie expired",
+        crawlErrorRetryable: false,
+        crawlErrorAt: new Date(),
+      })
+      .where(eq(bookmarkLinks.id, bookmark.id));
+
+    queueMocks.lowPriorityCrawlerEnqueue.mockClear();
+
+    await api.recrawlBookmark({ bookmarkId: bookmark.id });
+
+    const link = await db.query.bookmarkLinks.findFirst({
+      where: eq(bookmarkLinks.id, bookmark.id),
+    });
+    expect(link).toMatchObject({
+      crawlStatus: "pending",
+      crawlErrorSource: null,
+      crawlErrorCode: null,
+      crawlErrorMessage: null,
+      crawlErrorRetryable: null,
+      crawlErrorAt: null,
+    });
+    expect(queueMocks.lowPriorityCrawlerEnqueue).toHaveBeenCalledWith(
+      {
+        bookmarkId: bookmark.id,
+        archiveFullPage: false,
+        storePdf: false,
+      },
+      expect.objectContaining({
+        groupId: bookmark.userId,
+      }),
+    );
+  });
+
   describe("Bookmark Quotas", () => {
     test<CustomTestContext>("create bookmark with no quota (unlimited)", async ({
       apiCallers,

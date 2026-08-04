@@ -51,6 +51,7 @@ import {
   zBookmarkSchema,
   zBookmarkReadableContentFormatSchema,
   zBookmarkReadableContentSchema,
+  zCrawlErrorSchema,
   zGetBookmarksRequestSchema,
   zGetBookmarksResponseSchema,
   zManipulatedTagSchema,
@@ -78,7 +79,7 @@ import { RuleEngine } from "../lib/ruleEngine";
 import { getBookmarkIdsFromMatcher } from "../lib/search";
 import { reciprocalRankFusion } from "../lib/searchRanking";
 import { Asset } from "../models/assets";
-import { BareBookmark, Bookmark } from "../models/bookmarks";
+import { BareBookmark, Bookmark, buildCrawlError } from "../models/bookmarks";
 import { WebhooksService } from "../models/webhooks.service";
 
 const bookmarksProcedure = createScopedAuthedProcedure("bookmarks");
@@ -828,6 +829,34 @@ export const bookmarksAppRouter = router({
     )
     .use(ensureBookmarkOwnership)
     .mutation(async ({ input, ctx }) => {
+      const bookmark = await ctx.db.query.bookmarks.findFirst({
+        where: eq(bookmarks.id, input.bookmarkId),
+      });
+      if (!bookmark) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Bookmark not found",
+        });
+      }
+      if (bookmark.type !== BookmarkTypes.LINK) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Only link bookmarks can be recrawled",
+        });
+      }
+
+      await ctx.db
+        .update(bookmarkLinks)
+        .set({
+          crawlStatus: "pending",
+          crawlErrorSource: null,
+          crawlErrorCode: null,
+          crawlErrorMessage: null,
+          crawlErrorRetryable: null,
+          crawlErrorAt: null,
+        })
+        .where(eq(bookmarkLinks.id, input.bookmarkId));
+
       const payload = {
         bookmarkId: input.bookmarkId,
         archiveFullPage: input.archiveFullPage,
@@ -1437,6 +1466,7 @@ export const bookmarksAppRouter = router({
             url: z.string(),
             statusCode: z.number().nullable(),
             isCrawlingFailure: z.boolean(),
+            crawlError: zCrawlErrorSchema.nullish(),
             crawledAt: z.date().nullable(),
             createdAt: z.date().nullable(),
           }),
@@ -1450,6 +1480,11 @@ export const bookmarksAppRouter = router({
           url: bookmarkLinks.url,
           crawlStatusCode: bookmarkLinks.crawlStatusCode,
           crawlingStatus: bookmarkLinks.crawlStatus,
+          crawlErrorSource: bookmarkLinks.crawlErrorSource,
+          crawlErrorCode: bookmarkLinks.crawlErrorCode,
+          crawlErrorMessage: bookmarkLinks.crawlErrorMessage,
+          crawlErrorRetryable: bookmarkLinks.crawlErrorRetryable,
+          crawlErrorAt: bookmarkLinks.crawlErrorAt,
           crawledAt: bookmarkLinks.crawledAt,
           createdAt: bookmarks.createdAt,
         })
@@ -1471,6 +1506,7 @@ export const bookmarksAppRouter = router({
           url: b.url,
           statusCode: b.crawlStatusCode,
           isCrawlingFailure: b.crawlingStatus === "failure",
+          crawlError: buildCrawlError(b),
           crawledAt: b.crawledAt,
           createdAt: b.createdAt,
         })),

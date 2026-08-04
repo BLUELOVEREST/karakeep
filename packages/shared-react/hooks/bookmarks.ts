@@ -239,6 +239,10 @@ export function useRecrawlBookmark(
     api.bookmarks.recrawlBookmark.mutationOptions({
       ...opts,
       onSuccess: (res, req, meta, context) => {
+        queryClient.invalidateQueries(api.bookmarks.getBookmarks.pathFilter());
+        queryClient.invalidateQueries(
+          api.bookmarks.searchBookmarks.pathFilter(),
+        );
         queryClient.invalidateQueries(
           api.bookmarks.getBookmark.queryFilter({ bookmarkId: req.bookmarkId }),
         );

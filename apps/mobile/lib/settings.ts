@@ -13,6 +13,7 @@ const zToolbarActionId = z.enum([
   "info",
   "favourite",
   "archive",
+  "refresh",
   "browser",
   "share",
   "delete",
@@ -31,6 +32,7 @@ export const DEFAULT_TOOLBAR_ACTIONS: ToolbarActionId[] = [
 
 export const DEFAULT_OVERFLOW_ACTIONS: ToolbarActionId[] = [
   "archive",
+  "refresh",
   "delete",
 ];
 

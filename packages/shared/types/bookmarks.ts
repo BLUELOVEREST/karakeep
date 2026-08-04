@@ -127,6 +127,44 @@ export const zAssetSchema = z.object({
   fileName: z.string().nullish(),
 });
 
+export const zCrawlErrorSourceSchema = z.enum([
+  "generic_crawler",
+  "link_resolver",
+  "asset_download",
+  "reader_image_archive",
+  "unknown",
+]);
+
+export const zCrawlErrorCodeSchema = z.enum([
+  "HTTP_FORBIDDEN",
+  "RATE_LIMITED",
+  "UPSTREAM_5XX",
+  "NETWORK_ERROR",
+  "TIMEOUT",
+  "UNSUPPORTED_CONTENT_TYPE",
+  "ASSET_DOWNLOAD_FAILED",
+  "READER_IMAGE_ARCHIVE_FAILED",
+  "PARSE_FAILED",
+  "RESOLVER_UNCONFIGURED",
+  "RESOLVER_HTTP_ERROR",
+  "RESOLVER_UNAVAILABLE",
+  "AUTH_REQUIRED",
+  "COOKIE_EXPIRED",
+  "DOWNLOAD_FAILED",
+  "INVALID_RESPONSE",
+  "UNSUPPORTED_URL",
+  "UNKNOWN",
+]);
+
+export const zCrawlErrorSchema = z.object({
+  source: zCrawlErrorSourceSchema,
+  code: zCrawlErrorCodeSchema,
+  message: z.string(),
+  retryable: z.boolean(),
+  at: z.date().nullish(),
+});
+export type ZCrawlError = z.infer<typeof zCrawlErrorSchema>;
+
 export const zBookmarkedLinkSchema = z.object({
   type: z.literal(BookmarkTypes.LINK),
   url: z.string(),
@@ -147,6 +185,7 @@ export const zBookmarkedLinkSchema = z.object({
   preferredPreview: zPreferredLinkPreviewSchema.nullish(),
   crawledAt: z.date().nullish(),
   crawlStatus: z.enum(["success", "failure", "pending"]).nullish(),
+  crawlError: zCrawlErrorSchema.nullish(),
   author: z.string().nullish(),
   publisher: z.string().nullish(),
   datePublished: z.date().nullish(),

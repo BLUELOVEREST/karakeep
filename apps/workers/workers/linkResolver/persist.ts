@@ -22,6 +22,7 @@ import {
   downloadAndStoreImage,
   storeHtmlContent,
 } from "../crawler/assetStorage";
+import type { StructuredCrawlError } from "../crawler/crawlError";
 import { replaceArchivedAssetUrls } from "./mediaArchive";
 import type { RunProxyConfig } from "network";
 import type { ResolvedLinkAsset, ResolvedLinkContent } from "./types";
@@ -276,6 +277,11 @@ export async function persistResolvedLinkContent(
             ? htmlContentAssetInfo.assetId
             : null,
         crawledAt: new Date(),
+        crawlErrorSource: null,
+        crawlErrorCode: null,
+        crawlErrorMessage: null,
+        crawlErrorRetryable: null,
+        crawlErrorAt: null,
       })
       .where(eq(bookmarkLinks.id, args.bookmarkId));
 
@@ -389,13 +395,28 @@ export async function persistResolvedLinkContent(
 
 export async function markLinkResolverFailure(
   bookmarkId: string,
-  reason: string,
+  error: StructuredCrawlError | string,
 ) {
+  const structured =
+    typeof error === "string"
+      ? {
+          source: "link_resolver" as const,
+          code: "UNKNOWN" as const,
+          message: error,
+          retryable: false,
+        }
+      : error;
+
   await db
     .update(bookmarkLinks)
     .set({
       crawlStatus: "failure",
-      description: reason,
+      description: structured.message,
+      crawlErrorSource: structured.source,
+      crawlErrorCode: structured.code,
+      crawlErrorMessage: structured.message,
+      crawlErrorRetryable: structured.retryable,
+      crawlErrorAt: new Date(),
     })
     .where(eq(bookmarkLinks.id, bookmarkId));
 }
