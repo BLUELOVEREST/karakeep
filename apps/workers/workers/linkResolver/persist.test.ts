@@ -4,21 +4,23 @@ import os from "os";
 import path from "path";
 
 const mocks = vi.hoisted(() => {
+  const run = vi.fn();
   const txn = {
     update: vi.fn(() => ({
       set: vi.fn(() => ({
-        where: vi.fn(),
+        where: vi.fn(() => ({ run })),
       })),
     })),
     insert: vi.fn(() => ({
-      values: vi.fn(),
+      values: vi.fn(() => ({ run })),
     })),
     delete: vi.fn(() => ({
-      where: vi.fn(),
+      where: vi.fn(() => ({ run })),
     })),
   };
 
   return {
+    run,
     txn,
     updateSet: vi.fn(() => ({
       where: vi.fn(),

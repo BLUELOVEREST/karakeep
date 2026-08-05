@@ -173,7 +173,8 @@ export class CrawlerWorker {
                   crawlErrorRetryable: crawlError.retryable,
                   crawlErrorAt: new Date(),
                 })
-                .where(eq(bookmarkLinks.id, bookmarkId));
+                .where(eq(bookmarkLinks.id, bookmarkId))
+                .run();
               tx.update(bookmarks)
                 .set({
                   taggingStatus: null,
@@ -183,7 +184,8 @@ export class CrawlerWorker {
                     eq(bookmarks.id, bookmarkId),
                     eq(bookmarks.taggingStatus, "pending"),
                   ),
-                );
+                )
+                .run();
               tx.update(bookmarks)
                 .set({
                   summarizationStatus: null,
@@ -193,7 +195,8 @@ export class CrawlerWorker {
                     eq(bookmarks.id, bookmarkId),
                     eq(bookmarks.summarizationStatus, "pending"),
                   ),
-                );
+                )
+                .run();
               tx.update(bookmarks)
                 .set({
                   embeddingStatus: null,
@@ -203,7 +206,8 @@ export class CrawlerWorker {
                     eq(bookmarks.id, bookmarkId),
                     eq(bookmarks.embeddingStatus, "pending"),
                   ),
-                );
+                )
+                .run();
             });
           }
         },

@@ -283,7 +283,8 @@ export async function persistResolvedLinkContent(
         crawlErrorRetryable: null,
         crawlErrorAt: null,
       })
-      .where(eq(bookmarkLinks.id, args.bookmarkId));
+      .where(eq(bookmarkLinks.id, args.bookmarkId))
+      .run();
 
     if (htmlContentAssetInfo.result === "stored") {
       updateAsset(
@@ -341,7 +342,7 @@ export async function persistResolvedLinkContent(
       )
       .map((asset) => asset.dbAsset);
     if (contentAssets.length > 0) {
-      txn.insert(assets).values(contentAssets);
+      txn.insert(assets).values(contentAssets).run();
     }
   });
 

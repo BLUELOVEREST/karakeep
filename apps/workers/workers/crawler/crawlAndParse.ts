@@ -122,20 +122,24 @@ export async function handleAsAssetBookmark(
           },
           trx,
         );
-        trx.insert(bookmarkAssets).values({
-          id: bookmarkId,
-          assetType,
-          assetId: downloaded.assetId,
-          content: null,
-          fileName,
-          sourceUrl: url,
-        });
+        trx
+          .insert(bookmarkAssets)
+          .values({
+            id: bookmarkId,
+            assetType,
+            assetId: downloaded.assetId,
+            content: null,
+            fileName,
+            sourceUrl: url,
+          })
+          .run();
         // Switch the type of the bookmark from LINK to ASSET
         trx
           .update(bookmarks)
           .set({ type: BookmarkTypes.ASSET })
-          .where(eq(bookmarks.id, bookmarkId));
-        trx.delete(bookmarkLinks).where(eq(bookmarkLinks.id, bookmarkId));
+          .where(eq(bookmarks.id, bookmarkId))
+          .run();
+        trx.delete(bookmarkLinks).where(eq(bookmarkLinks.id, bookmarkId)).run();
       });
       await AssetPreprocessingQueue.enqueue(
         {
@@ -358,7 +362,8 @@ export async function crawlAndParseUrl(
           datePublished: parseDate(meta.datePublished),
           dateModified: parseDate(meta.dateModified),
         })
-        .where(eq(bookmarkLinks.id, bookmarkId));
+        .where(eq(bookmarkLinks.id, bookmarkId))
+        .run();
 
       let readableContent = parsedReadableContent;
       const oldReaderImageAssets = await db.query.assets.findMany({
@@ -479,7 +484,8 @@ export async function crawlAndParseUrl(
             crawlErrorRetryable: partialCrawlError?.retryable ?? null,
             crawlErrorAt: partialCrawlError ? new Date() : null,
           })
-          .where(eq(bookmarkLinks.id, bookmarkId));
+          .where(eq(bookmarkLinks.id, bookmarkId))
+          .run();
 
         if (screenshotAssetInfo) {
           updateAsset(
@@ -524,12 +530,15 @@ export async function crawlAndParseUrl(
           );
         }
         if (oldReaderImageAssets.length > 0) {
-          txn.delete(assets).where(
-            inArray(
-              assets.id,
-              oldReaderImageAssets.map((asset) => asset.id),
-            ),
-          );
+          txn
+            .delete(assets)
+            .where(
+              inArray(
+                assets.id,
+                oldReaderImageAssets.map((asset) => asset.id),
+              ),
+            )
+            .run();
           assetDeletionTasks.push(
             ...oldReaderImageAssets.map((asset) =>
               silentDeleteAsset(userId, asset.id),
@@ -575,7 +584,10 @@ export async function crawlAndParseUrl(
           );
         } else if (oldAssets.contentAssetId) {
           // Unlink the old content asset
-          txn.delete(assets).where(eq(assets.id, oldAssets.contentAssetId));
+          txn
+            .delete(assets)
+            .where(eq(assets.id, oldAssets.contentAssetId))
+            .run();
           assetDeletionTasks.push(
             silentDeleteAsset(userId, oldAssets.contentAssetId),
           );
