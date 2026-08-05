@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => {
     },
     archiveWebpage: vi.fn(),
     downloadAndStoreImage: vi.fn(),
+    saveAsset: vi.fn(),
     storeHtmlContent: vi.fn(),
     updateAsset: vi.fn(),
     silentDeleteAsset: vi.fn(),
@@ -65,7 +66,7 @@ vi.mock("@karakeep/shared/assetdb", () => ({
   IMAGE_ASSET_TYPES: new Set(["image/jpeg", "image/png", "image/webp"]),
   VIDEO_ASSET_TYPES: new Set(["video/mp4"]),
   newAssetId: vi.fn(() => "asset-new"),
-  saveAssetFromFile: vi.fn(),
+  saveAsset: mocks.saveAsset,
   silentDeleteAsset: mocks.silentDeleteAsset,
 }));
 
@@ -137,6 +138,13 @@ describe("persistResolvedLinkContent", () => {
       expect.any(AbortSignal),
       {},
     );
+    expect(mocks.saveAsset).toHaveBeenCalledWith({
+      userId: "user-1",
+      assetId: "asset-new",
+      asset: Buffer.from("image-bytes"),
+      metadata: { contentType: "image/png", fileName: "image.png" },
+      quotaApproved: undefined,
+    });
     expect(mocks.updateAsset).toHaveBeenCalledWith(
       "archive-old",
       expect.objectContaining({

@@ -11,7 +11,7 @@ import {
   IMAGE_ASSET_TYPES,
   VIDEO_ASSET_TYPES,
   newAssetId,
-  saveAssetFromFile,
+  saveAsset,
   silentDeleteAsset,
 } from "@karakeep/shared/assetdb";
 import serverConfig from "@karakeep/shared/config";
@@ -112,23 +112,36 @@ async function importLocalResolvedAsset(
 
   const assetId = newAssetId();
   const contentType = normalizeResolvedAssetContentType(asset);
-  const extension = path.extname(sourcePath);
-  const assetPath = path.join("/tmp", `${assetId}${extension}`);
-  await fs.promises.copyFile(sourcePath, assetPath);
-  const stats = await fs.promises.stat(assetPath);
-  const fileBuffer = await fs.promises.readFile(assetPath);
+  const statsStartedAt = Date.now();
+  const stats = await fs.promises.stat(sourcePath);
+  logger.info(
+    `[ResolverPersist][${jobId}] Stat local ${asset.kind} asset "${asset.fileName ?? path.basename(sourcePath)}" (${stats.size} bytes) in ${elapsedMs(statsStartedAt)}ms`,
+  );
+
+  const readStartedAt = Date.now();
+  const fileBuffer = await fs.promises.readFile(sourcePath);
+  logger.info(
+    `[ResolverPersist][${jobId}] Read local ${asset.kind} asset "${asset.fileName ?? path.basename(sourcePath)}" (${fileBuffer.byteLength} bytes) in ${elapsedMs(readStartedAt)}ms`,
+  );
+
   const quotaApproved = await QuotaService.checkStorageQuota(
     db,
     userId,
     stats.size,
   );
-  await saveAssetFromFile({
+
+  const saveStartedAt = Date.now();
+  await saveAsset({
     userId,
     assetId,
-    assetPath,
+    asset: fileBuffer,
     metadata: { contentType, fileName: asset.fileName ?? undefined },
     quotaApproved,
   });
+  logger.info(
+    `[ResolverPersist][${jobId}] Saved local ${asset.kind} asset "${asset.fileName ?? path.basename(sourcePath)}" to asset store in ${elapsedMs(saveStartedAt)}ms`,
+  );
+
   await fs.promises.rm(sourcePath, { force: true });
   logger.info(
     `[ResolverPersist][${jobId}] Imported local ${asset.kind} asset "${asset.fileName ?? path.basename(sourcePath)}" (${stats.size} bytes) in ${elapsedMs(startedAt)}ms`,
