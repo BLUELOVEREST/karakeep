@@ -15,6 +15,7 @@ import {
   silentDeleteAsset,
 } from "@karakeep/shared/assetdb";
 import serverConfig from "@karakeep/shared/config";
+import logger from "@karakeep/shared/logger";
 import { getAssetUrl } from "@karakeep/shared/utils/assetUtils";
 
 import {
@@ -94,10 +95,16 @@ function wrapResolvedArchiveHtml(htmlContent: string) {
   return `<!doctype html><html><head><meta charset="utf-8"><style>${style}</style></head><body>${htmlContent}</body></html>`;
 }
 
+function elapsedMs(startedAt: number) {
+  return Date.now() - startedAt;
+}
+
 async function importLocalResolvedAsset(
   asset: ResolvedLinkAsset,
   userId: string,
+  jobId: string,
 ) {
+  const startedAt = Date.now();
   const sourcePath = asset.path;
   if (!sourcePath) {
     return null;
@@ -123,6 +130,9 @@ async function importLocalResolvedAsset(
     quotaApproved,
   });
   await fs.promises.rm(sourcePath, { force: true });
+  logger.info(
+    `[ResolverPersist][${jobId}] Imported local ${asset.kind} asset "${asset.fileName ?? path.basename(sourcePath)}" (${stats.size} bytes) in ${elapsedMs(startedAt)}ms`,
+  );
   return {
     assetId,
     contentType,
@@ -158,8 +168,9 @@ async function archiveResolvedAssets(args: {
 
   for (const asset of mediaAssets) {
     args.abortSignal.throwIfAborted();
+    const assetStartedAt = Date.now();
     const imported = asset.path
-      ? await importLocalResolvedAsset(asset, args.userId)
+      ? await importLocalResolvedAsset(asset, args.userId, args.jobId)
       : asset.kind === "image"
         ? await downloadAndStoreImage(
             asset.url!,
@@ -170,6 +181,9 @@ async function archiveResolvedAssets(args: {
           )
         : null;
     if (!imported) {
+      logger.warn(
+        `[ResolverPersist][${args.jobId}] Skipped ${asset.kind} asset ${asset.originalUrl ?? asset.url ?? asset.path ?? "<unknown>"} after ${elapsedMs(assetStartedAt)}ms`,
+      );
       continue;
     }
 
@@ -195,6 +209,9 @@ async function archiveResolvedAssets(args: {
         fileName: asset.fileName ?? null,
       },
     });
+    logger.info(
+      `[ResolverPersist][${args.jobId}] Archived ${asset.kind} asset ${archivedAssets.length}/${mediaAssets.length} (${imported.size} bytes, role=${asset.role ?? "unknown"}) in ${elapsedMs(assetStartedAt)}ms`,
+    );
   }
 
   return archivedAssets;
@@ -203,6 +220,13 @@ async function archiveResolvedAssets(args: {
 export async function persistResolvedLinkContent(
   args: PersistResolvedLinkContentArgs,
 ) {
+  const startedAt = Date.now();
+  const sourceAssetCount = args.content.archivableAssets?.length ?? 0;
+  logger.info(
+    `[ResolverPersist][${args.jobId}] Starting persist for bookmark ${args.bookmarkId}: sourceAssets=${sourceAssetCount}, htmlBytes=${Buffer.byteLength(args.content.htmlContent ?? "", "utf8")}, fullPageArchive=${serverConfig.crawler.fullPageArchive}`,
+  );
+
+  const archiveAssetsStartedAt = Date.now();
   const archivedAssets = await archiveResolvedAssets({
     assets: args.content.archivableAssets,
     userId: args.userId,
@@ -211,6 +235,10 @@ export async function persistResolvedLinkContent(
     abortSignal: args.abortSignal,
     runProxy: args.runProxy,
   });
+  logger.info(
+    `[ResolverPersist][${args.jobId}] Archived ${archivedAssets.length}/${sourceAssetCount} resolved asset(s) in ${elapsedMs(archiveAssetsStartedAt)}ms`,
+  );
+  const replaceAssetsStartedAt = Date.now();
   const htmlContent = replaceArchivedAssetUrls(
     args.content.htmlContent,
     archivedAssets.flatMap((asset) =>
@@ -224,11 +252,18 @@ export async function persistResolvedLinkContent(
         : [],
     ),
   );
+  logger.info(
+    `[ResolverPersist][${args.jobId}] Replaced archived asset URLs in ${elapsedMs(replaceAssetsStartedAt)}ms`,
+  );
 
+  const storeHtmlStartedAt = Date.now();
   const htmlContentAssetInfo = await storeHtmlContent(
     htmlContent ?? undefined,
     args.userId,
     args.jobId,
+  );
+  logger.info(
+    `[ResolverPersist][${args.jobId}] Stored resolver HTML as ${htmlContentAssetInfo.result}${htmlContentAssetInfo.result === "stored" ? ` (${htmlContentAssetInfo.size} bytes)` : ""} in ${elapsedMs(storeHtmlStartedAt)}ms`,
   );
   args.abortSignal.throwIfAborted();
 
@@ -242,13 +277,20 @@ export async function persistResolvedLinkContent(
     !archivedBannerAsset &&
     args.content.imageUrl &&
     args.content.imageUrl.startsWith("http")
-      ? await downloadAndStoreImage(
-          args.content.imageUrl,
-          args.userId,
-          args.jobId,
-          args.abortSignal,
-          args.runProxy,
-        )
+      ? await (async () => {
+          const bannerStartedAt = Date.now();
+          const result = await downloadAndStoreImage(
+            args.content.imageUrl!,
+            args.userId,
+            args.jobId,
+            args.abortSignal,
+            args.runProxy,
+          );
+          logger.info(
+            `[ResolverPersist][${args.jobId}] Downloaded fallback banner image ${result ? `(${result.size} bytes)` : "(skipped)"} in ${elapsedMs(bannerStartedAt)}ms`,
+          );
+          return result;
+        })()
       : null;
   args.abortSignal.throwIfAborted();
 
@@ -258,6 +300,7 @@ export async function persistResolvedLinkContent(
       : null;
   const assetDeletionTasks: Promise<void>[] = [];
 
+  const dbStartedAt = Date.now();
   await db.transaction((txn) => {
     txn
       .update(bookmarkLinks)
@@ -345,8 +388,15 @@ export async function persistResolvedLinkContent(
       txn.insert(assets).values(contentAssets).run();
     }
   });
+  logger.info(
+    `[ResolverPersist][${args.jobId}] Wrote bookmark link and ${archivedAssets.length} asset row(s) in ${elapsedMs(dbStartedAt)}ms`,
+  );
 
   if (htmlContent && serverConfig.crawler.fullPageArchive) {
+    const archiveStartedAt = Date.now();
+    logger.info(
+      `[ResolverPersist][${args.jobId}] Starting full-page archive for resolver HTML`,
+    );
     const archiveHtmlContent = replaceArchivedAssetUrls(
       htmlContent,
       archivedAssets
@@ -368,6 +418,9 @@ export async function persistResolvedLinkContent(
     );
 
     if (archiveResult) {
+      logger.info(
+        `[ResolverPersist][${args.jobId}] Full-page archive stored (${archiveResult.size} bytes) in ${elapsedMs(archiveStartedAt)}ms`,
+      );
       await db.transaction((txn) => {
         updateAsset(
           args.oldFullPageArchiveAssetId,
@@ -388,10 +441,18 @@ export async function persistResolvedLinkContent(
           silentDeleteAsset(args.userId, args.oldFullPageArchiveAssetId),
         );
       }
+    } else {
+      logger.warn(
+        `[ResolverPersist][${args.jobId}] Full-page archive returned no asset after ${elapsedMs(archiveStartedAt)}ms`,
+      );
     }
   }
 
+  const deleteStartedAt = Date.now();
   await Promise.all(assetDeletionTasks);
+  logger.info(
+    `[ResolverPersist][${args.jobId}] Completed persist for bookmark ${args.bookmarkId} in ${elapsedMs(startedAt)}ms (oldAssetDeleteMs=${elapsedMs(deleteStartedAt)})`,
+  );
 }
 
 export async function markLinkResolverFailure(

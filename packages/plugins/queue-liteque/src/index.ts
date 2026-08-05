@@ -343,7 +343,11 @@ class LitequeRunner<T, R = void> implements Runner<T> {
         new Promise<never>((_, reject) => {
           timeout = setTimeout(() => {
             abortController.abort();
-            reject(new Error("Timeout"));
+            reject(
+              new Error(
+                `Queue ${this.queue.name()} job ${job.id} run ${runNumber} timed out after ${this.opts.timeoutSecs}s`,
+              ),
+            );
           }, this.opts.timeoutSecs * 1000);
         }),
       ]);

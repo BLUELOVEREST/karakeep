@@ -416,6 +416,7 @@ async function runCrawler(
     logger.info(
       `[Crawler][${jobId}] Resolving "${truncateUrl(url)}" with provider "${linkResolverProvider.id}"`,
     );
+    const resolverStartedAt = Date.now();
     const resolved = await linkResolverProvider.resolve({
       url,
       userId,
@@ -423,9 +424,13 @@ async function runCrawler(
       bookmarkId,
       abortSignal: job.abortSignal,
     });
+    logger.info(
+      `[Crawler][${jobId}] Provider "${linkResolverProvider.id}" returned ${resolved.status} in ${Date.now() - resolverStartedAt}ms`,
+    );
     job.abortSignal.throwIfAborted();
 
     if (resolved.status === "success") {
+      const persistStartedAt = Date.now();
       await persistResolvedLinkContent({
         bookmarkId,
         userId,
@@ -439,9 +444,16 @@ async function runCrawler(
         abortSignal: job.abortSignal,
         runProxy,
       });
+      logger.info(
+        `[Crawler][${jobId}] Persisted provider "${linkResolverProvider.id}" result in ${Date.now() - persistStartedAt}ms`,
+      );
+      const postCrawlStartedAt = Date.now();
       await enqueuePostCrawlJobs(job, bookmarkId, userId, url, {
         skipVideoDownload: resolved.content.skipVideoDownload === true,
       });
+      logger.info(
+        `[Crawler][${jobId}] Enqueued post-crawl jobs for provider "${linkResolverProvider.id}" in ${Date.now() - postCrawlStartedAt}ms`,
+      );
       return { status: "completed" };
     }
 
