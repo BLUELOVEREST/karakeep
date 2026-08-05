@@ -17,6 +17,93 @@ import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
 
 import ReadingProgressBanner from "./ReadingProgressBanner";
 
+const readerDarkModeStyles = `
+  .dark .karakeep-web-reader-content,
+  .dark .karakeep-web-reader-content .prose {
+    color: hsl(var(--foreground)) !important;
+    color-scheme: dark;
+    --tw-prose-body: hsl(var(--foreground));
+    --tw-prose-headings: hsl(var(--foreground));
+    --tw-prose-lead: hsl(var(--muted-foreground));
+    --tw-prose-links: hsl(var(--primary));
+    --tw-prose-bold: hsl(var(--foreground));
+    --tw-prose-counters: hsl(var(--muted-foreground));
+    --tw-prose-bullets: hsl(var(--muted-foreground));
+    --tw-prose-hr: hsl(var(--border));
+    --tw-prose-quotes: hsl(var(--foreground));
+    --tw-prose-quote-borders: hsl(var(--border));
+    --tw-prose-captions: hsl(var(--muted-foreground));
+    --tw-prose-code: hsl(var(--foreground));
+    --tw-prose-pre-code: hsl(var(--foreground));
+    --tw-prose-pre-bg: hsl(var(--muted));
+    --tw-prose-th-borders: hsl(var(--border));
+    --tw-prose-td-borders: hsl(var(--border));
+  }
+
+  .dark .karakeep-web-reader-content .prose :where(
+    article,
+    section,
+    div,
+    p,
+    span,
+    li,
+    ul,
+    ol,
+    table,
+    thead,
+    tbody,
+    tr,
+    td,
+    th,
+    blockquote,
+    figcaption,
+    label,
+    small,
+    strong,
+    em,
+    b,
+    i,
+    u
+  )[style*="color" i] {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .dark .karakeep-web-reader-content .prose :is(h1, h2, h3, h4, h5, h6) {
+    color: hsl(var(--foreground)) !important;
+  }
+
+  .dark .karakeep-web-reader-content .prose :is(pre, code) {
+    border-color: hsl(var(--border)) !important;
+  }
+
+  .dark .karakeep-web-reader-content .prose pre {
+    color: hsl(var(--foreground)) !important;
+    background: hsl(var(--muted)) !important;
+  }
+
+  .dark .karakeep-web-reader-content .prose :not(pre) > code {
+    color: hsl(var(--foreground)) !important;
+    background: hsl(var(--muted)) !important;
+  }
+
+  .dark .karakeep-web-reader-content .prose hr,
+  .dark .karakeep-web-reader-content .prose [style*="border-color: rgba(0,0,0" i],
+  .dark .karakeep-web-reader-content .prose [style*="border-color: rgba(0, 0, 0" i] {
+    border-color: hsl(var(--border)) !important;
+  }
+
+  .dark .karakeep-web-reader-content .prose a,
+  .dark .karakeep-web-reader-content .prose a[style*="color" i] {
+    color: hsl(var(--primary)) !important;
+    text-decoration-color: hsl(var(--primary) / 0.5);
+    text-underline-offset: 2px;
+  }
+
+  .dark .karakeep-web-reader-content .prose [data-highlight="true"] {
+    color: hsl(var(--foreground)) !important;
+  }
+`;
+
 export default function ReaderView({
   bookmarkId,
   className,
@@ -133,52 +220,55 @@ export default function ReaderView({
     );
   } else {
     content = (
-      <ScrollProgressTracker
-        onSavePosition={onSavePosition}
-        onScrollPositionChange={onScrollPositionChange}
-        restorePosition={restorePosition}
-        readingProgressOffset={readingProgressOffset}
-        readingProgressAnchor={readingProgressAnchor}
-        showProgressBar
-        progressBarStyle={progressBarStyle}
-      >
-        {showBanner && (
-          <ReadingProgressBanner
-            percent={bannerPercent}
-            onContinue={onContinue}
-            onDismiss={onDismiss}
+      <div className="karakeep-web-reader-content">
+        <style>{readerDarkModeStyles}</style>
+        <ScrollProgressTracker
+          onSavePosition={onSavePosition}
+          onScrollPositionChange={onScrollPositionChange}
+          restorePosition={restorePosition}
+          readingProgressOffset={readingProgressOffset}
+          readingProgressAnchor={readingProgressAnchor}
+          showProgressBar
+          progressBarStyle={progressBarStyle}
+        >
+          {showBanner && (
+            <ReadingProgressBanner
+              percent={bannerPercent}
+              onContinue={onContinue}
+              onDismiss={onDismiss}
+            />
+          )}
+          <BookmarkHTMLHighlighter
+            className={className}
+            style={style}
+            htmlContent={cachedContent || ""}
+            highlights={highlights?.highlights ?? []}
+            readOnly={readOnly}
+            onDeleteHighlight={(h) =>
+              deleteHighlight({
+                highlightId: h.id,
+              })
+            }
+            onUpdateHighlight={(h) =>
+              updateHighlight({
+                highlightId: h.id,
+                color: h.color,
+                note: h.note,
+              })
+            }
+            onHighlight={(h) =>
+              createHighlight({
+                startOffset: h.startOffset,
+                endOffset: h.endOffset,
+                color: h.color,
+                bookmarkId,
+                text: h.text,
+                note: h.note ?? null,
+              })
+            }
           />
-        )}
-        <BookmarkHTMLHighlighter
-          className={className}
-          style={style}
-          htmlContent={cachedContent || ""}
-          highlights={highlights?.highlights ?? []}
-          readOnly={readOnly}
-          onDeleteHighlight={(h) =>
-            deleteHighlight({
-              highlightId: h.id,
-            })
-          }
-          onUpdateHighlight={(h) =>
-            updateHighlight({
-              highlightId: h.id,
-              color: h.color,
-              note: h.note,
-            })
-          }
-          onHighlight={(h) =>
-            createHighlight({
-              startOffset: h.startOffset,
-              endOffset: h.endOffset,
-              color: h.color,
-              bookmarkId,
-              text: h.text,
-              note: h.note ?? null,
-            })
-          }
-        />
-      </ScrollProgressTracker>
+        </ScrollProgressTracker>
+      </div>
     );
   }
   return content;

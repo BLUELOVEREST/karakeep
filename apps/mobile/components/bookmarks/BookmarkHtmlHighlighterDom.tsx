@@ -126,15 +126,82 @@ export default function BookmarkHtmlHighlighterDom({
     >
       <style>
         {`
-          .karakeep-reader-content-dark :is(article, section, div, p, span, li, strong, em)[style*="color"] {
+          .karakeep-reader-content-dark,
+          .karakeep-reader-content-dark .prose {
+            color: #e5e7eb !important;
+            background: #000000 !important;
+            color-scheme: dark;
+            --tw-prose-body: #e5e7eb;
+            --tw-prose-headings: #f9fafb;
+            --tw-prose-lead: #d1d5db;
+            --tw-prose-links: #93c5fd;
+            --tw-prose-bold: #f9fafb;
+            --tw-prose-counters: #9ca3af;
+            --tw-prose-bullets: #9ca3af;
+            --tw-prose-hr: #374151;
+            --tw-prose-quotes: #f3f4f6;
+            --tw-prose-quote-borders: #4b5563;
+            --tw-prose-captions: #9ca3af;
+            --tw-prose-code: #f3f4f6;
+            --tw-prose-pre-code: #e5e7eb;
+            --tw-prose-pre-bg: #111827;
+            --tw-prose-th-borders: #4b5563;
+            --tw-prose-td-borders: #374151;
+          }
+
+          .karakeep-reader-content-dark .prose :where(
+            article,
+            section,
+            div,
+            p,
+            span,
+            li,
+            ul,
+            ol,
+            table,
+            thead,
+            tbody,
+            tr,
+            td,
+            th,
+            blockquote,
+            figcaption,
+            label,
+            small,
+            strong,
+            em,
+            b,
+            i,
+            u
+          )[style*="color" i] {
             color: #e5e7eb !important;
           }
 
-          .karakeep-reader-content-dark :is(h1, h2, h3, h4, h5, h6) {
+          .karakeep-reader-content-dark .prose :is(h1, h2, h3, h4, h5, h6) {
             color: #f9fafb !important;
           }
 
-          .karakeep-reader-content-dark [data-highlight="true"] {
+          .karakeep-reader-content-dark .prose :is(pre, code) {
+            border-color: #374151 !important;
+          }
+
+          .karakeep-reader-content-dark .prose pre {
+            color: #e5e7eb !important;
+            background: #111827 !important;
+          }
+
+          .karakeep-reader-content-dark .prose :not(pre) > code {
+            color: #f3f4f6 !important;
+            background: rgba(55, 65, 81, 0.7) !important;
+          }
+
+          .karakeep-reader-content-dark .prose hr,
+          .karakeep-reader-content-dark .prose [style*="border-color: rgba(0,0,0" i],
+          .karakeep-reader-content-dark .prose [style*="border-color: rgba(0, 0, 0" i] {
+            border-color: rgba(229, 231, 235, 0.24) !important;
+          }
+
+          .karakeep-reader-content-dark .prose [data-highlight="true"] {
             color: #f3f4f6 !important;
           }
 
@@ -175,20 +242,20 @@ export default function BookmarkHtmlHighlighterDom({
             background: ${isDark ? "rgba(37, 99, 235, 0.28)" : "rgba(191, 219, 254, 0.95)"};
           }
 
-          a,
-          a[data-href],
-          .feed-link-url,
-          .feed-link-uname {
+          .karakeep-reader-content a,
+          .karakeep-reader-content a[data-href],
+          .karakeep-reader-content .feed-link-url,
+          .karakeep-reader-content .feed-link-uname {
             color: ${isDark ? "#93c5fd" : "#1d4ed8"} !important;
             text-decoration-color: ${isDark ? "rgba(147, 197, 253, 0.55)" : "rgba(29, 78, 216, 0.45)"};
             text-underline-offset: 2px;
             font-weight: 500;
           }
 
-          a:active,
-          a[data-href]:active,
-          .feed-link-url:active,
-          .feed-link-uname:active {
+          .karakeep-reader-content a:active,
+          .karakeep-reader-content a[data-href]:active,
+          .karakeep-reader-content .feed-link-url:active,
+          .karakeep-reader-content .feed-link-uname:active {
             color: ${isDark ? "#bfdbfe" : "#1e40af"} !important;
           }
         `}
