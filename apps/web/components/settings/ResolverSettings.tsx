@@ -47,6 +47,13 @@ function sourceLabel(source: "runtime" | "environment" | "unset") {
   return "Unset";
 }
 
+export function getSecretPlaceholder(configured: boolean, placeholder: string) {
+  if (configured) {
+    return "Configured: ********. Paste a new value to replace it.";
+  }
+  return placeholder;
+}
+
 function ResolverSecretCard({ field }: { field: ResolverField }) {
   const api = useTRPC();
   const queryClient = useQueryClient();
@@ -92,9 +99,7 @@ function ResolverSecretCard({ field }: { field: ResolverField }) {
       description={field.description}
       action={
         <Badge variant={field.status.configured ? "default" : "secondary"}>
-          {field.status.configured
-            ? "Runtime value active"
-            : "No runtime value"}
+          {field.status.configured ? "Configured" : "Not configured"}
         </Badge>
       }
     >
@@ -106,7 +111,10 @@ function ResolverSecretCard({ field }: { field: ResolverField }) {
       <Textarea
         value={value}
         onChange={(event) => setValue(event.target.value)}
-        placeholder={field.placeholder}
+        placeholder={getSecretPlaceholder(
+          field.status.configured,
+          field.placeholder,
+        )}
         className="min-h-24 font-mono text-sm"
       />
 
