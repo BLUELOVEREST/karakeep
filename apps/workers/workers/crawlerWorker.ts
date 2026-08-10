@@ -56,6 +56,10 @@ import {
 } from "./crawler/crawlError";
 import { buildLinkResolverRegistry } from "./linkResolver/registry";
 import {
+  loadRuntimeResolverSecrets,
+  syncRuntimeSecretsForUrl,
+} from "./linkResolver/runtimeConfig";
+import {
   markLinkResolverFailure,
   persistResolvedLinkContent,
 } from "./linkResolver/persist";
@@ -398,6 +402,9 @@ async function runCrawler(
     `[Crawler][${jobId}] Will crawl "${truncateUrl(url)}" for link with id "${bookmarkId}"`,
   );
 
+  const resolverSecrets = await loadRuntimeResolverSecrets();
+  await syncRuntimeSecretsForUrl(url, resolverSecrets);
+
   const linkResolverRegistry = buildLinkResolverRegistry({
     xiaohongshuBackend: serverConfig.crawler.xiaohongshuBackend,
     xiaohongshuSpiderEndpoint: serverConfig.crawler.xiaohongshuSpiderEndpoint,
@@ -408,7 +415,7 @@ async function runCrawler(
     smzdmResolverEndpoint: serverConfig.crawler.smzdmResolverEndpoint,
     wechatArticleResolverEndpoint:
       serverConfig.crawler.wechatArticleResolverEndpoint,
-    wechatArticleAuthKey: serverConfig.crawler.wechatArticleAuthKey,
+    wechatArticleAuthKey: resolverSecrets.wechatArticleAuthKey,
     douyinResolverEndpoint: serverConfig.crawler.douyinResolverEndpoint,
   });
   const linkResolverProvider = linkResolverRegistry.selectProvider(url);

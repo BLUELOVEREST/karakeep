@@ -18,6 +18,7 @@ import {
   Image,
   KeyRound,
   Link,
+  PlugZap,
   Rss,
   Sparkles,
   User,
@@ -97,6 +98,11 @@ const settingsSidebarItems = (
       name: t("settings.webhooks.webhooks"),
       icon: <Webhook size={18} />,
       path: "/settings/webhooks",
+    },
+    {
+      name: "Resolver Settings",
+      icon: <PlugZap size={18} />,
+      path: "/settings/resolvers",
     },
     {
       name: t("settings.rules.rules"),

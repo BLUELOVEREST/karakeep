@@ -117,6 +117,27 @@ export const users = sqliteTable("user", {
   inferredTagLang: text("inferredTagLang"),
 });
 
+export const resolverRuntimeConfigs = sqliteTable(
+  "resolverRuntimeConfig",
+  {
+    resolverId: text("resolverId", {
+      enum: ["xiaohongshu", "douyin", "wechat"],
+    }).notNull(),
+    key: text("key", {
+      enum: ["xhsCookie", "douyinCookie", "wechatArticleAuthKey"],
+    }).notNull(),
+    value: text("value").notNull(),
+    createdAt: createdAtMsField(),
+    modifiedAt: modifiedAtMsField(),
+    updatedBy: text("updatedBy").references(() => users.id, {
+      onDelete: "set null",
+    }),
+  },
+  (table) => ({
+    pk: primaryKey({ columns: [table.resolverId, table.key] }),
+  }),
+);
+
 export const accounts = sqliteTable(
   "account",
   {
