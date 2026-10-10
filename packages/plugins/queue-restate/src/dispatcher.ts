@@ -5,7 +5,6 @@ import type {
   QueueOptions,
   RunnerOptions,
 } from "@karakeep/shared/queueing";
-import logger from "@karakeep/shared/logger";
 import { tryCatch } from "@karakeep/shared/tryCatch";
 
 import type { RunnerJobData, RunnerResult, SerializedError } from "./types";
@@ -69,17 +68,6 @@ export function buildDispatcherService<T, R>(
       ) => {
         const id = ctx.request().id;
         const priority = data.priority ?? 0;
-        const logDebug = async (message: string) => {
-          await ctx.run(
-            "log",
-            async () => {
-              logger.debug(`[${queue.name()}][${id}] ${message}`);
-            },
-            {
-              maxRetryAttempts: 1,
-            },
-          );
-        };
 
         const semaphore = new RestateSemaphore(
           ctx,
@@ -92,7 +80,7 @@ export function buildDispatcherService<T, R>(
 
         let runNumber = 0;
         while (runNumber <= NUM_RETRIES) {
-          await logDebug(
+          ctx.console.debug(
             `Dispatcher attempt ${runNumber} for queue ${queue.name()} job ${id} (priority=${priority}, groupId=${data.groupId ?? "none"})`,
           );
           const acquireResult = await tryCatch(
@@ -104,7 +92,7 @@ export function buildDispatcherService<T, R>(
           );
           if (acquireResult.error) {
             if (acquireResult.error instanceof ReenqueueRequested) {
-              await logDebug(
+              ctx.console.debug(
                 `Dispatcher re-enqueue requested for queue ${queue.name()} job ${id}`,
               );
               continue;
@@ -114,12 +102,12 @@ export function buildDispatcherService<T, R>(
           const leaseId = acquireResult.data;
           if (!leaseId) {
             // Idempotency key already exists, skip
-            await logDebug(
+            ctx.console.debug(
               `Dispatcher skipping queue ${queue.name()} job ${id} due to existing idempotency key`,
             );
             return;
           }
-          await logDebug(
+          ctx.console.debug(
             `Dispatcher acquired lease ${leaseId} for queue ${queue.name()} job ${id}`,
           );
 
@@ -141,7 +129,7 @@ export function buildDispatcherService<T, R>(
               res.error instanceof Error
                 ? res.error.message
                 : String(res.error);
-            await logDebug(
+            ctx.console.debug(
               `Dispatcher RPC error for queue ${queue.name()} job ${id}: ${errorMessage}`,
             );
             await semaphore.release(leaseId);
@@ -179,7 +167,7 @@ export function buildDispatcherService<T, R>(
 
           if (result.type === "rate_limit") {
             // Rate limit - release semaphore, sleep, and retry without incrementing runNumber
-            await logDebug(
+            ctx.console.debug(
               `Dispatcher rate limit for queue ${queue.name()} job ${id} (delayMs=${result.delayMs})`,
             );
             await semaphore.release(leaseId);
@@ -190,7 +178,7 @@ export function buildDispatcherService<T, R>(
           if (result.type === "error") {
             // Call onError on the runner BEFORE releasing semaphore
             // This ensures inFlight tracking stays consistent
-            await logDebug(
+            ctx.console.debug(
               `Dispatcher runner error for queue ${queue.name()} job ${id}: ${result.error.message}`,
             );
             await tryCatch(
@@ -209,7 +197,7 @@ export function buildDispatcherService<T, R>(
 
           // Success - call onCompleted BEFORE releasing semaphore
           // This ensures inFlight tracking stays consistent
-          await logDebug(
+          ctx.console.debug(
             `Dispatcher completed queue ${queue.name()} job ${id}`,
           );
           await tryCatch(

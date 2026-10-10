@@ -20,6 +20,40 @@ import { truncateUrl } from "./utils";
 
 const tracer = getTracer("@karakeep/workers");
 
+const EMBEDDED_MEDIA_DATA_URI_PATTERN = /data:(?:audio|video)\/[^"'\s<>)]*/gi;
+
+/**
+ * Full-page archives can contain large audio and video files embedded directly
+ * in src attributes. Those payloads are useful in the stored archive, but they
+ * are irrelevant to metadata and readable-content extraction and cause large
+ * memory amplification when parsed into a DOM.
+ *
+ * Replace them only in the copy sent to the parser subprocess. The original
+ * HTML remains untouched for full-page archival.
+ */
+export function replaceEmbeddedMediaDataUris(htmlContent: string): {
+  htmlContent: string;
+  replacedBytes: number;
+  replacementCount: number;
+} {
+  let replacedBytes = 0;
+  let replacementCount = 0;
+  const parserHtmlContent = htmlContent.replace(
+    EMBEDDED_MEDIA_DATA_URI_PATTERN,
+    (dataUri) => {
+      replacedBytes += dataUri.length;
+      replacementCount += 1;
+      return "about:blank";
+    },
+  );
+
+  return {
+    htmlContent: parserHtmlContent,
+    replacedBytes,
+    replacementCount,
+  };
+}
+
 function getSubprocessScriptPath(): string {
   const currentUrl = import.meta.url;
   if (currentUrl.includes("/dist/")) {
@@ -76,10 +110,16 @@ export async function runParseSubprocess(
 
       const { cmd, args } = getSubprocessCommand();
       const timeoutMs = serverConfig.crawler.parseTimeoutSec * 1000;
+      const parserInput = replaceEmbeddedMediaDataUris(htmlContent);
+      if (parserInput.replacementCount > 0) {
+        logger.info(
+          `[Crawler][${jobId}] Replaced ${parserInput.replacementCount} embedded audio/video data URIs (${parserInput.replacedBytes} bytes) before parsing.`,
+        );
+      }
 
       const result = await execa({
         input: JSON.stringify({
-          htmlContent,
+          htmlContent: parserInput.htmlContent,
           url,
           jobId,
           metadataOnly: opts?.metadataOnly,

@@ -1,3 +1,5 @@
+import { format } from "node:util";
+
 import * as restate from "@restatedev/restate-sdk";
 import * as restateClient from "@restatedev/restate-sdk-clients";
 
@@ -162,12 +164,19 @@ class RestateQueueClient implements QueueClient {
       identityKeys: envConfig.RESTATE_PUB_KEY
         ? [envConfig.RESTATE_PUB_KEY]
         : undefined,
-      logger: (meta, msg) => {
-        if (meta.context) {
-          // No need to log invocation logs
-        } else {
-          logger.log(meta.level, `[restate] ${msg}`);
+      logger: (meta, message, ...optionalParams) => {
+        if (meta.replaying) {
+          return;
         }
+
+        const invocationContext = meta.context
+          ? `[${meta.context.invocationTarget}][${meta.context.invocationId}]`
+          : "";
+        const level = meta.level === "trace" ? "debug" : meta.level;
+        logger.log(
+          level,
+          `[restate]${invocationContext} ${format(message, ...optionalParams)}`,
+        );
       },
     });
     logger.info(`Restate listening on port ${port}`);

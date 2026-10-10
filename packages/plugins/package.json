@@ -23,8 +23,8 @@
   },
   "dependencies": {
     "@karakeep/shared": "workspace:*",
-    "@restatedev/restate-sdk": "^1.15.1",
-    "@restatedev/restate-sdk-clients": "^1.15.1",
+    "@restatedev/restate-sdk": "^1.16.2",
+    "@restatedev/restate-sdk-clients": "^1.16.2",
     "async-mutex": "^0.4.1",
     "better-sqlite3": "^12.11.1",
     "liteque": "^0.8.0",

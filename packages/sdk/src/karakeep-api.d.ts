@@ -831,6 +831,8 @@ export interface components {
     Bookmark: {
       id: string;
       /** Format: date-time */
+      firstCreatedAt?: string;
+      /** Format: date-time */
       createdAt: string;
       /** Format: date-time */
       modifiedAt: string | null;
@@ -880,6 +882,16 @@ export interface components {
             favicon?: string | null;
             htmlContent?: string | null;
             contentAssetId?: string | null;
+            /** @enum {string|null} */
+            readerViewStatus?:
+              | "readable"
+              | "not_readable"
+              | "uncertain"
+              | "unavailable"
+              | null;
+            readerViewScore?: number | null;
+            /** @enum {string|null} */
+            preferredPreview?: "reader_view" | "screenshot" | "overview" | null;
             /** Format: date-time */
             crawledAt?: string | null;
             /** @enum {string|null} */
@@ -1419,6 +1431,8 @@ export interface operations {
           "application/json": {
             id: string;
             /** Format: date-time */
+            firstCreatedAt?: string;
+            /** Format: date-time */
             createdAt: string;
             /** Format: date-time */
             modifiedAt: string | null;
@@ -1554,6 +1568,8 @@ export interface operations {
         content: {
           "application/json": {
             id: string;
+            /** Format: date-time */
+            firstCreatedAt?: string;
             /** Format: date-time */
             createdAt: string;
             /** Format: date-time */

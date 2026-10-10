@@ -302,6 +302,78 @@ bookmarkCmd
     );
   });
 
+const singleFileIfExistsModes = [
+  "skip",
+  "overwrite",
+  "overwrite-recrawl",
+  "append",
+  "append-recrawl",
+] as const;
+
+type SingleFileIfExistsMode = (typeof singleFileIfExistsModes)[number];
+
+function parseSingleFileIfExistsMode(value: string): SingleFileIfExistsMode {
+  if (!singleFileIfExistsModes.includes(value as SingleFileIfExistsMode)) {
+    throw new Error(
+      `if-exists must be one of: ${singleFileIfExistsModes.join(", ")}`,
+    );
+  }
+  return value as SingleFileIfExistsMode;
+}
+
+bookmarkCmd
+  .command("import-singlefile")
+  .description("imports a SingleFile HTML archive as a link bookmark")
+  .argument("<file>", "the path to the SingleFile HTML archive")
+  .requiredOption("--url <url>", "the original URL of the archived page")
+  .option(
+    "--if-exists <mode>",
+    "how to handle an existing bookmark with the same URL",
+    parseSingleFileIfExistsMode,
+    "skip",
+  )
+  .action(async (filePath, opts) => {
+    const globals = getGlobalOptions();
+
+    try {
+      const fileBuffer = fs.readFileSync(filePath);
+      const fileName = path.basename(filePath);
+      const formData = new FormData();
+      formData.append("url", opts.url);
+      formData.append(
+        "file",
+        new Blob([fileBuffer], { type: "text/html" }),
+        fileName,
+      );
+
+      const endpoint = new URL(
+        `${globals.serverAddr}/api/v1/bookmarks/singlefile`,
+      );
+      endpoint.searchParams.set("ifexists", opts.ifExists);
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          authorization: `Bearer ${globals.apiKey}`,
+        },
+        body: formData,
+      });
+      if (!response.ok) {
+        throw new Error(await getResponseError(response));
+      }
+
+      printObject((await response.json()) as object);
+    } catch (error) {
+      printStatusMessage(
+        false,
+        `Failed to import SingleFile archive "${filePath}". Reason: ${
+          error instanceof Error ? error.message : error
+        }`,
+      );
+      process.exitCode = 1;
+    }
+  });
+
 bookmarkCmd
   .command("get")
   .description("fetch information about a bookmark")

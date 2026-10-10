@@ -332,6 +332,9 @@ importers:
       '@expo/metro-runtime':
         specifier: ~56.0.16
         version: 56.0.16(@expo/log-box@56.0.14)(expo@56.0.15)(react-dom@19.2.3(react@19.2.3))(react-native@0.85.3(patch_hash=7d74c7fbd33e9f3f3f8a8ba47a013acfc098948e39c7faab1232e6edca358ac1)(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
+      '@expo/ui':
+        specifier: 56.0.21
+        version: 56.0.21(@babel/core@7.29.0)(@types/react-dom@19.2.3(@types/react@19.2.15))(@types/react@19.2.15)(expo@56.0.15)(react-dom@19.2.3(react@19.2.3))(react-native-worklets@0.8.3(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(react-native@0.85.3(patch_hash=7d74c7fbd33e9f3f3f8a8ba47a013acfc098948e39c7faab1232e6edca358ac1)(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3))(react-native@0.85.3(patch_hash=7d74c7fbd33e9f3f3f8a8ba47a013acfc098948e39c7faab1232e6edca358ac1)(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
       '@expo/vector-icons':
         specifier: ^15.0.3
         version: 15.0.3(expo-font@56.0.7)(react-native@0.85.3(patch_hash=7d74c7fbd33e9f3f3f8a8ba47a013acfc098948e39c7faab1232e6edca358ac1)(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)
@@ -1332,11 +1335,11 @@ importers:
         specifier: workspace:*
         version: link:../shared
       '@restatedev/restate-sdk':
-        specifier: ^1.15.1
-        version: 1.15.1
+        specifier: ^1.16.2
+        version: 1.16.2
       '@restatedev/restate-sdk-clients':
-        specifier: ^1.15.1
-        version: 1.15.1
+        specifier: ^1.16.2
+        version: 1.16.2
       async-mutex:
         specifier: ^0.4.1
         version: 0.4.1
@@ -7227,14 +7230,14 @@ packages:
   '@remusao/trie@2.1.0':
     resolution: {integrity: sha512-Er3Q8q0/2OcCJPQYJOPLmCuqO0wu7cav3SPtpjlxSbjFi1x+A1pZkkLD6c9q2rGEkGW/tkrRzfrhNMt8VQjzXg==}
 
-  '@restatedev/restate-sdk-clients@1.15.1':
-    resolution: {integrity: sha512-8VBX2sbbJYGmbpS95Ara14BdRvoQjmR6zg/EYIxuoKbrIP7N+JeSmgk27YRh23jBaZX8xUMaDiDSAO5H/iuzAQ==}
+  '@restatedev/restate-sdk-clients@1.16.2':
+    resolution: {integrity: sha512-LWieGNx0nhY1lmQP3V5gtZIvdYBdHIBWwwz+zK+aY8T1Oyl5KrCdY+8ku0P5v85Sc8MBC1GzdHURM5mZRbAxcA==}
 
-  '@restatedev/restate-sdk-core@1.15.1':
-    resolution: {integrity: sha512-qILG7EnpQng5pnWK+43wNRueYoPjDksFU4acnO7pKvOZrmjDBZomqmvP3qz2h4prFV1eTNH6YSqcR0FNhRoBIg==}
+  '@restatedev/restate-sdk-core@1.16.2':
+    resolution: {integrity: sha512-dytd78+c7x24NFhfj7XpziqYJCY5E4DE2Qd0N6la/hXoF2SbhhM5/Iey82MCwELCEnN7RPfN3+/Th58LQezTQw==}
 
-  '@restatedev/restate-sdk@1.15.1':
-    resolution: {integrity: sha512-MYIBoggyx806UjHvIpoXr1wi9ivCrlHesOhxE/pW8bTXrvBBV6tN0EwhQR1126DmpkFw5qaVFMSJ4I2rr2Tlkw==}
+  '@restatedev/restate-sdk@1.16.2':
+    resolution: {integrity: sha512-L2XqUukvdGYmqCqsFvJzTsaU3JiuFzsYSh6nK19Q1yKNOr/bBBZKdic0o0hza5P5QdiiFC5jLHJ5wCWt77IO0Q==}
 
   '@rn-primitives/hooks@1.3.0':
     resolution: {integrity: sha512-BR97reSu7uVDpyMeQdRJHT0w8KdS6jdYnOL6xQtqS2q3H6N7vXBlX4LFERqJZphD+aziJFIAJ3HJF1vtt6XlpQ==}
@@ -26222,15 +26225,15 @@ snapshots:
 
   '@remusao/trie@2.1.0': {}
 
-  '@restatedev/restate-sdk-clients@1.15.1':
+  '@restatedev/restate-sdk-clients@1.16.2':
     dependencies:
-      '@restatedev/restate-sdk-core': 1.15.1
+      '@restatedev/restate-sdk-core': 1.16.2
 
-  '@restatedev/restate-sdk-core@1.15.1': {}
+  '@restatedev/restate-sdk-core@1.16.2': {}
 
-  '@restatedev/restate-sdk@1.15.1':
+  '@restatedev/restate-sdk@1.16.2':
     dependencies:
-      '@restatedev/restate-sdk-core': 1.15.1
+      '@restatedev/restate-sdk-core': 1.16.2
 
   '@rn-primitives/hooks@1.3.0(react-native-web@0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-native@0.85.3(patch_hash=7d74c7fbd33e9f3f3f8a8ba47a013acfc098948e39c7faab1232e6edca358ac1)(@babel/core@7.29.0)(@react-native/metro-config@0.85.3(@babel/core@7.29.0))(@types/react@19.2.15)(react@19.2.3))(react@19.2.3)':
     dependencies:
