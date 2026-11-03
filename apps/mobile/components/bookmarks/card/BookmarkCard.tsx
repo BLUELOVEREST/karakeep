@@ -5,7 +5,6 @@ import { createContext, useContext } from "react";
 import { Pressable, View } from "react-native";
 
 import { NotePreview } from "../NotePreview";
-import BookmarkCardContextMenu from "./bookmark-card-context-menu";
 import type { BookmarkActionController } from "./use-bookmark-actions";
 
 export interface BookmarkCardContext {
@@ -23,11 +22,11 @@ export interface BookmarkCardContext {
   titleOnPress?: () => void;
 }
 
-const BookmarkCardContext = createContext<BookmarkCardContext | null>(null);
+const BookmarkCardCtx = createContext<BookmarkCardContext | null>(null);
 
 function NoteSection() {
   const { settings } = useAppSettings();
-  const ctx = useContext(BookmarkCardContext);
+  const ctx = useContext(BookmarkCardCtx);
   if (!ctx) {
     return null;
   }
@@ -43,7 +42,7 @@ function NoteSection() {
 }
 
 function FooterExtras() {
-  const ctx = useContext(BookmarkCardContext);
+  const ctx = useContext(BookmarkCardCtx);
   if (!ctx) {
     return null;
   }
@@ -66,7 +65,7 @@ function PressableSlot({
 }
 
 function Media() {
-  const ctx = useContext(BookmarkCardContext);
+  const ctx = useContext(BookmarkCardCtx);
   if (!ctx) {
     return null;
   }
@@ -79,7 +78,7 @@ function Media() {
 }
 
 function CompactMedia() {
-  const ctx = useContext(BookmarkCardContext);
+  const ctx = useContext(BookmarkCardCtx);
   if (!ctx) {
     return null;
   }
@@ -92,7 +91,7 @@ function CompactMedia() {
 }
 
 function Body() {
-  const ctx = useContext(BookmarkCardContext);
+  const ctx = useContext(BookmarkCardCtx);
   if (!ctx) {
     return null;
   }
@@ -105,7 +104,7 @@ function Body() {
 }
 
 function CompactBody() {
-  const ctx = useContext(BookmarkCardContext);
+  const ctx = useContext(BookmarkCardCtx);
   if (!ctx) {
     return null;
   }
@@ -118,7 +117,7 @@ function CompactBody() {
 }
 
 function Title() {
-  const ctx = useContext(BookmarkCardContext);
+  const ctx = useContext(BookmarkCardCtx);
   if (!ctx) {
     return null;
   }
@@ -140,8 +139,7 @@ function Title() {
 }
 
 function Root({ children }: { children: React.ReactNode }) {
-  const ctx = useContext(BookmarkCardContext);
-  const card = (
+  return (
     <View
       className="overflow-hidden rounded-xl bg-card"
       style={{ borderCurve: "continuous" }}
@@ -149,20 +147,10 @@ function Root({ children }: { children: React.ReactNode }) {
       {children}
     </View>
   );
-
-  if (!ctx) {
-    return card;
-  }
-
-  return (
-    <BookmarkCardContextMenu actions={ctx.actions}>
-      {card}
-    </BookmarkCardContextMenu>
-  );
 }
 
 const BookmarkCardContainer = {
-  Provider: BookmarkCardContext.Provider,
+  Provider: BookmarkCardCtx.Provider,
   NoteSection,
   FooterExtras,
   Media,

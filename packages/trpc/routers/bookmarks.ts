@@ -26,9 +26,10 @@ import {
   OpenAIQueue,
   QueuePriority,
   QuotaService,
+  SUPPORTED_BOOKMARK_ASSET_TYPES,
   triggerSearchReindex,
+  VideoWorkerQueue,
 } from "@karakeep/shared-server";
-import { SUPPORTED_BOOKMARK_ASSET_TYPES } from "@karakeep/shared/assetdb";
 import serverConfig from "@karakeep/shared/config";
 import {
   EmbeddingClientFactory,
@@ -330,17 +331,6 @@ export const bookmarksAppRouter = router({
         }
       }
 
-      const quotaResult = await QuotaService.canCreateBookmark(
-        ctx.db,
-        ctx.user.id,
-      );
-      if (!quotaResult.result) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: quotaResult.error,
-        });
-      }
-
       if (input.type === BookmarkTypes.LINK && input.precrawledArchiveId) {
         await Asset.ensureOwnership(ctx, input.precrawledArchiveId);
       }
@@ -364,6 +354,17 @@ export const bookmarksAppRouter = router({
 
       const bookmark = await ctx.db.transaction(
         (tx) => {
+          // Check user quota
+          const quotaResult = QuotaService.canCreateBookmarkInTransaction(
+            tx,
+            ctx.user.id,
+          );
+          if (!quotaResult.result) {
+            throw new TRPCError({
+              code: "FORBIDDEN",
+              message: quotaResult.error,
+            });
+          }
           const bookmark = tx
             .insert(bookmarks)
             .values({
@@ -876,6 +877,53 @@ export const bookmarksAppRouter = router({
         priority: QueuePriority.Low,
         idempotencyKey: buildCrawlIdempotencyKey(payload),
       });
+      await ctx.db
+        .update(bookmarkLinks)
+        .set({ crawlStatus: "pending" })
+        .where(eq(bookmarkLinks.id, input.bookmarkId));
+    }),
+  preserveVideo: bookmarksProcedure
+    .use(
+      createRateLimitMiddleware({
+        name: "bookmarks.preserveVideo",
+        windowMs: 30 * 60 * 1000,
+        maxRequests: 50,
+      }),
+    )
+    .input(
+      z.object({
+        bookmarkId: z.string(),
+      }),
+    )
+    .use(ensureBookmarkOwnership)
+    .mutation(async ({ input, ctx }) => {
+      if (!serverConfig.crawler.downloadVideoOnDemand) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "On-demand video downloads are disabled on this server",
+        });
+      }
+      const link = await ctx.db.query.bookmarkLinks.findFirst({
+        where: eq(bookmarkLinks.id, input.bookmarkId),
+        columns: { url: true },
+      });
+      if (!link) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "Videos can only be preserved for link bookmarks",
+        });
+      }
+      await VideoWorkerQueue.enqueue(
+        {
+          bookmarkId: input.bookmarkId,
+          url: link.url,
+          onDemand: true,
+        },
+        {
+          groupId: ctx.user.id,
+          idempotencyKey: `video:${input.bookmarkId}`,
+        },
+      );
     }),
   updateReadingProgress: bookmarksProcedure
     .input(
@@ -1475,6 +1523,8 @@ export const bookmarksAppRouter = router({
           z.object({
             id: z.string(),
             url: z.string(),
+            title: z.string().nullable(),
+            isCrawling: z.boolean(),
             statusCode: z.number().nullable(),
             isCrawlingFailure: z.boolean(),
             crawlError: zCrawlErrorSchema.nullish(),
@@ -1489,6 +1539,8 @@ export const bookmarksAppRouter = router({
         .select({
           id: bookmarkLinks.id,
           url: bookmarkLinks.url,
+          userTitle: bookmarks.title,
+          linkTitle: bookmarkLinks.title,
           crawlStatusCode: bookmarkLinks.crawlStatusCode,
           crawlingStatus: bookmarkLinks.crawlStatus,
           crawlErrorSource: bookmarkLinks.crawlErrorSource,
@@ -1515,6 +1567,8 @@ export const bookmarksAppRouter = router({
         bookmarks: brokenLinkBookmarks.map((b) => ({
           id: b.id,
           url: b.url,
+          title: b.userTitle || b.linkTitle || null,
+          isCrawling: b.crawlingStatus === "pending",
           statusCode: b.crawlStatusCode,
           isCrawlingFailure: b.crawlingStatus === "failure",
           crawlError: buildCrawlError(b),

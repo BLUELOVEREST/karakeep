@@ -55,9 +55,6 @@ vi.mock("@karakeep/shared-server", () => ({
   QuotaService: {
     checkStorageQuota: vi.fn(),
   },
-}));
-
-vi.mock("@karakeep/shared/assetdb", () => ({
   ASSET_TYPES: {
     IMAGE_JPEG: "image/jpeg",
     TEXT_HTML: "text/html",
@@ -74,7 +71,7 @@ vi.mock("workerUtils", () => ({
   updateAsset: mocks.updateAsset,
 }));
 
-vi.mock("../crawler/assetStorage", () => ({
+vi.mock("../utils/resolverAssetStorage", () => ({
   archiveWebpage: mocks.archiveWebpage,
   downloadAndStoreImage: mocks.downloadAndStoreImage,
   storeHtmlContent: mocks.storeHtmlContent,

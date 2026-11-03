@@ -13,7 +13,7 @@ import {
   newAssetId,
   saveAsset,
   silentDeleteAsset,
-} from "@karakeep/shared/assetdb";
+} from "@karakeep/shared-server";
 import serverConfig from "@karakeep/shared/config";
 import logger from "@karakeep/shared/logger";
 import { getAssetUrl } from "@karakeep/shared/utils/assetUtils";
@@ -22,8 +22,8 @@ import {
   archiveWebpage,
   downloadAndStoreImage,
   storeHtmlContent,
-} from "../crawler/assetStorage";
-import type { StructuredCrawlError } from "../crawler/crawlError";
+} from "../utils/resolverAssetStorage";
+import type { StructuredCrawlError } from "../utils/crawlError";
 import { replaceArchivedAssetUrls } from "./mediaArchive";
 import type { RunProxyConfig } from "network";
 import type { ResolvedLinkAsset, ResolvedLinkContent } from "./types";

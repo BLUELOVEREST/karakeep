@@ -122,7 +122,12 @@ export default function BookmarkHtmlHighlighterDom({
   return (
     <div
       className={`karakeep-reader-content ${isDark ? "karakeep-reader-content-dark dark" : ""}`}
-      style={{ maxWidth: "100vw", overflowX: "hidden" }}
+      style={{
+        width: "100%",
+        maxWidth: "100vw",
+        overflowX: "hidden",
+        background: contentStyle?.background,
+      }}
     >
       <style>
         {`

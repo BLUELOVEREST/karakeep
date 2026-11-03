@@ -333,6 +333,62 @@
                       null
                     ]
                   },
+                  "crawlError": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "source": {
+                        "type": "string",
+                        "enum": [
+                          "generic_crawler",
+                          "link_resolver",
+                          "asset_download",
+                          "reader_image_archive",
+                          "unknown"
+                        ]
+                      },
+                      "code": {
+                        "type": "string",
+                        "enum": [
+                          "HTTP_FORBIDDEN",
+                          "RATE_LIMITED",
+                          "UPSTREAM_5XX",
+                          "NETWORK_ERROR",
+                          "TIMEOUT",
+                          "UNSUPPORTED_CONTENT_TYPE",
+                          "ASSET_DOWNLOAD_FAILED",
+                          "READER_IMAGE_ARCHIVE_FAILED",
+                          "PARSE_FAILED",
+                          "RESOLVER_UNCONFIGURED",
+                          "RESOLVER_HTTP_ERROR",
+                          "RESOLVER_UNAVAILABLE",
+                          "AUTH_REQUIRED",
+                          "COOKIE_EXPIRED",
+                          "DOWNLOAD_FAILED",
+                          "INVALID_RESPONSE",
+                          "UNSUPPORTED_URL",
+                          "UNKNOWN"
+                        ]
+                      },
+                      "message": {
+                        "type": "string"
+                      },
+                      "retryable": {
+                        "type": "boolean"
+                      },
+                      "at": {
+                        "type": "string",
+                        "nullable": true,
+                        "format": "date-time"
+                      }
+                    },
+                    "required": [
+                      "source",
+                      "code",
+                      "message",
+                      "retryable"
+                    ]
+                  },
                   "author": {
                     "type": "string",
                     "nullable": true
@@ -3120,8 +3176,8 @@
           },
           {
             "schema": {
-              "type": "number",
-              "nullable": true
+              "type": "integer",
+              "minimum": 1
             },
             "required": false,
             "name": "limit",

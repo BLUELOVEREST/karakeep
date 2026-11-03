@@ -2,6 +2,7 @@ import { FlatList, Pressable, View } from "react-native";
 import BookmarkList from "@/components/bookmarks/BookmarkList";
 import QueryPageState from "@/components/QueryPageState";
 import { Text } from "@/components/ui/Text";
+import { READABLE_CONTENT_MAX_WIDTH } from "@/lib/responsive";
 
 import type { BookmarkSearchState } from "@/lib/useBookmarkSearchState";
 
@@ -27,7 +28,7 @@ export default function BookmarkSearchResults({
     error,
     refetch,
     isPending,
-    fetchNextPage,
+    onEndReached,
     isFetchingNextPage,
     onRefresh,
   } = state;
@@ -45,6 +46,11 @@ export default function BookmarkSearchResults({
     return (
       <FlatList
         contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={{
+          width: "100%",
+          maxWidth: READABLE_CONTENT_MAX_WIDTH,
+          alignSelf: "center",
+        }}
         data={filteredHistory}
         renderItem={renderHistoryItem}
         keyExtractor={(item, index) => `${item}-${index}`}
@@ -80,7 +86,7 @@ export default function BookmarkSearchResults({
   return (
     <BookmarkList
       bookmarks={data.pages.flatMap((p) => p.bookmarks)}
-      fetchNextPage={fetchNextPage}
+      fetchNextPage={onEndReached}
       isFetchingNextPage={isFetchingNextPage}
       onRefresh={onRefresh}
       isRefreshing={isPending}

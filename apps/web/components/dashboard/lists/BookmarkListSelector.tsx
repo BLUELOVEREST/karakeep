@@ -70,6 +70,7 @@ interface MultiSelectionProps {
 interface SelectionProps {
   hideSubtreeOf?: string;
   hideBookmarkIds?: string[];
+  ownedOnly?: boolean;
   listTypes?: ZBookmarkList["type"][];
   disabled?: boolean;
   displayMode?: "flat" | "tree";
@@ -311,7 +312,7 @@ function BookmarkListSingleSelector({
         disabled={disabled}
       >
         {selectedListName || placeholder}
-        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+        <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
       </Button>
     </ListSelectorComponent>
   );
@@ -366,7 +367,7 @@ function BookmarkListMultiSelector({
         aria-disabled={disabled}
         aria-expanded={disabled ? false : open}
         className={cn(
-          "relative flex min-h-10 w-full cursor-pointer flex-wrap items-center gap-2 rounded-md border border-input bg-background px-3 py-1 text-sm ring-offset-background transition-colors",
+          "relative flex min-h-10 w-full cursor-pointer flex-wrap items-center gap-2 rounded-md border border-input bg-background px-3 py-1 text-sm transition-[color,box-shadow] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
           disabled && "cursor-not-allowed opacity-50",
           className,
         )}
@@ -395,7 +396,7 @@ function BookmarkListMultiSelector({
                     <button
                       type="button"
                       disabled={disabled}
-                      className="cursor-pointer rounded-full outline-none ring-offset-background focus:ring-1 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed"
+                      className="cursor-pointer rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed"
                       onClick={(e) => {
                         e.stopPropagation();
                         removeSelection(listId);
@@ -421,6 +422,7 @@ export function BookmarkListSelector(props: BookmarkListSelectorProps) {
   const {
     hideSubtreeOf,
     hideBookmarkIds = [],
+    ownedOnly = false,
     listTypes = ["manual", "smart"],
     ...selectorProps
   } = props;
@@ -435,6 +437,9 @@ export function BookmarkListSelector(props: BookmarkListSelectorProps) {
     }
     // Hide lists where user is a viewer (can't add/remove bookmarks)
     if (lastItem.userRole === "viewer") {
+      return false;
+    }
+    if (ownedOnly && lastItem.userRole !== "owner") {
       return false;
     }
     if (!hideSubtreeOf) {

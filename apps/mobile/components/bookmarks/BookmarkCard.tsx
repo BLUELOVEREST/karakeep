@@ -4,10 +4,11 @@ import useAppSettings from "@/lib/settings";
 import { buildApiHeaders } from "@/lib/utils";
 import { useWhoAmI } from "@karakeep/shared-react/hooks/users";
 import { useQuery } from "@tanstack/react-query";
+import { format, isAfter, subYears } from "date-fns";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { Pressable, View } from "react-native";
 
 import { useTRPC } from "@karakeep/shared-react/trpc";
 import type { ZBookmark } from "@karakeep/shared/types/bookmarks";
@@ -15,6 +16,7 @@ import { BookmarkTypes } from "@karakeep/shared/types/bookmarks";
 import {
   getBookmarkLinkImageUrl,
   getBookmarkRefreshInterval,
+  getBookmarkTitle,
 } from "@karakeep/shared/utils/bookmarkUtils";
 
 import { useToast } from "../ui/Toast";
@@ -25,7 +27,6 @@ import {
   BookmarkCardContext,
 } from "./card/BookmarkCard";
 import TagList from "./card/TagList";
-import { Divider } from "../ui/Divider";
 import ActionBar from "./card/ActionBar";
 import { useBookmarkActions } from "./card/use-bookmark-actions";
 
@@ -82,6 +83,33 @@ function BookmarkLinkImage({
   );
 }
 
+const UNTITLED_BOOKMARK_TITLE = "Untitled";
+
+function getDisplayTitle(bookmark: ZBookmark) {
+  return getBookmarkTitle(bookmark)?.trim() || UNTITLED_BOOKMARK_TITLE;
+}
+
+function BookmarkFooterMetadata({ ctx }: { ctx: BookmarkCardContext }) {
+  const oneYearAgo = subYears(new Date(), 1);
+  const dateFormat = isAfter(ctx.bookmark.createdAt, oneYearAgo)
+    ? "MMM d"
+    : "MMM d, yyyy";
+
+  return (
+    <View className="min-w-0 flex-1 flex-row items-center gap-1.5">
+      {ctx.footerExtras && (
+        <>
+          <BookmarkCardContainer.FooterExtras />
+          <Text className="shrink-0">•</Text>
+        </>
+      )}
+      <Text className="shrink-0" numberOfLines={1} selectable>
+        {format(ctx.bookmark.createdAt, dateFormat)}
+      </Text>
+    </View>
+  );
+}
+
 function useLinkCardContext({
   bookmark,
 }: {
@@ -115,9 +143,9 @@ function useLinkCardContext({
   return {
     media: contentComp,
     compactMedia,
-    title: bookmark.title ?? bookmark.content.title ?? parsedUrl.host,
+    title: getDisplayTitle(bookmark),
     footerExtras: (
-      <Text className="my-auto shrink" numberOfLines={1}>
+      <Text className="my-auto shrink" numberOfLines={1} selectable>
         {parsedUrl.host}
       </Text>
     ),
@@ -145,7 +173,7 @@ function useTextCardContext({
         {content}
       </Text>
     ),
-    title: bookmark.title ?? undefined,
+    title: getDisplayTitle(bookmark),
   };
 }
 
@@ -157,8 +185,6 @@ function useAssetCardContext({
   if (bookmark.content.type !== BookmarkTypes.ASSET) {
     return undefined;
   }
-  const title = bookmark.title ?? bookmark.content.fileName;
-
   const assetImage =
     bookmark.assets.find((r) => r.assetType == "assetScreenshot")?.id ??
     bookmark.content.assetId;
@@ -167,7 +193,8 @@ function useAssetCardContext({
     media: (
       <BookmarkAssetImage
         assetId={assetImage}
-        className="h-56 min-h-56 w-full"
+        className="h-56 min-h-56 w-full bg-muted"
+        contentFit="contain"
       />
     ),
     compactMedia: (
@@ -176,7 +203,7 @@ function useAssetCardContext({
         className="h-28 w-24 overflow-hidden rounded-lg bg-muted"
       />
     ),
-    title: title ?? undefined,
+    title: getDisplayTitle(bookmark),
   };
 }
 
@@ -191,10 +218,9 @@ function CardLayout({ ctx }: { ctx: BookmarkCardContext }) {
             <BookmarkCardContainer.Body />
             <BookmarkCardContainer.NoteSection />
             <TagList bookmark={ctx.bookmark} />
-            <Divider orientation="vertical" className="mt-2 h-0.5 w-full" />
-            <View className="mt-2 flex flex-row justify-between px-2 pb-2">
-              <BookmarkCardContainer.FooterExtras />
-              {Platform.OS !== "ios" && <ActionBar actions={ctx.actions} />}
+            <View className="flex-row justify-between border-t border-border px-2 pb-2 pt-2">
+              <BookmarkFooterMetadata ctx={ctx} />
+              <ActionBar actions={ctx.actions} />
             </View>
           </View>
         </View>
@@ -249,11 +275,11 @@ function ListLayout({ ctx }: { ctx: BookmarkCardContext }) {
             ) : (
               mainContent
             )}
-            {Platform.OS !== "ios" && (
+            {
               <View className="absolute bottom-0 right-0 flex-row justify-end">
                 <ActionBar actions={ctx.actions} compact />
               </View>
-            )}
+            }
           </View>
         </View>
       </BookmarkCardContainer.Root>

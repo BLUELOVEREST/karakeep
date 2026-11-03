@@ -14,20 +14,17 @@ import { db } from "@karakeep/db";
 import { AssetTypes } from "@karakeep/db/schema";
 import {
   addLogFields,
+  ASSET_TYPES,
+  newAssetId,
   QuotaService,
+  saveAssetFromFile,
+  silentDeleteAsset,
   StorageQuotaError,
   VideoWorkerQueue,
   ZVideoRequest,
   zvideoRequestSchema,
 } from "@karakeep/shared-server";
-import {
-  ASSET_TYPES,
-  IMAGE_ASSET_TYPES,
-  newAssetId,
-  saveAssetFromFile,
-  silentDeleteAsset,
-  VIDEO_ASSET_TYPES,
-} from "@karakeep/shared/assetdb";
+import { IMAGE_ASSET_TYPES, VIDEO_ASSET_TYPES } from "@karakeep/shared/assetdb";
 import serverConfig from "@karakeep/shared/config";
 import logger from "@karakeep/shared/logger";
 import { DequeuedJob, getQueueClient } from "@karakeep/shared/queueing";
@@ -126,7 +123,7 @@ function normalizeImageContentType(contentType: string | null | undefined) {
 
 async function runWorker(job: DequeuedJob<ZVideoRequest>) {
   const jobId = job.id;
-  const { bookmarkId } = job.data;
+  const { bookmarkId, onDemand } = job.data;
   addLogFields<"videoWorker.run">({ "bookmark.id": bookmarkId });
 
   const {
@@ -136,7 +133,10 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
     videoAssetId: oldVideoAssetId,
   } = await getBookmarkDetails(bookmarkId);
 
-  if (!serverConfig.crawler.downloadVideo) {
+  const downloadEnabled = onDemand
+    ? serverConfig.crawler.downloadVideoOnDemand
+    : serverConfig.crawler.downloadVideo;
+  if (!downloadEnabled) {
     logger.info(
       `[VideoCrawler][${jobId}] Skipping video download from "${url}", because it is disabled in the config.`,
     );

@@ -1,11 +1,10 @@
 import { Ollama } from "ollama";
 import OpenAI from "openai";
 import { zodResponseFormat } from "openai/helpers/zod";
-import * as undici from "undici";
 import { z } from "zod";
 
 import serverConfig from "./config";
-import { customFetch } from "./customFetch";
+import { createCustomFetch } from "./customFetch";
 import logger from "./logger";
 
 export interface InferenceResponse {
@@ -27,6 +26,17 @@ function isNumberArray(value: unknown): value is number[] {
 
 function isNumberArray2D(value: unknown): value is number[][] {
   return Array.isArray(value) && value.every(isNumberArray);
+}
+
+function validateEmbeddingDimensions(embeddings: number[][]): void {
+  const expectedDimensions = serverConfig.embedding.dimensions;
+  for (const [index, embedding] of embeddings.entries()) {
+    if (embedding.length !== expectedDimensions) {
+      throw new Error(
+        `Got embedding response item ${index} with ${embedding.length} dimensions from inference provider; expected ${expectedDimensions} configured by EMBEDDING_DIMENSIONS`,
+      );
+    }
+  }
 }
 
 function parseEmbeddingResponse(response: unknown): number[][] {
@@ -189,9 +199,12 @@ const buildOpenAIClient = (config: OpenAIEmbeddingConfig) =>
       "X-Title": "Karakeep",
       "HTTP-Referer": "https://karakeep.app",
     },
-    fetchOptions: config.proxyUrl
-      ? { dispatcher: new undici.ProxyAgent(config.proxyUrl) }
-      : undefined,
+    fetch: createCustomFetch(
+      config.timeoutSec !== undefined
+        ? config.timeoutSec * 1000
+        : OpenAI.DEFAULT_TIMEOUT,
+      config.proxyUrl,
+    ),
   });
 
 export class InferenceClientFactory {
@@ -249,6 +262,7 @@ export class OpenAIEmbeddingClient implements EmbeddingClient {
     const embedResponse = await this.openAI.embeddings.create({
       model: serverConfig.embedding.textModel,
       input: inputs,
+      encoding_format: "float",
       ...(serverConfig.embedding.textModelDimensionOverride !== undefined
         ? {
             dimensions: serverConfig.embedding.textModelDimensionOverride,
@@ -256,6 +270,7 @@ export class OpenAIEmbeddingClient implements EmbeddingClient {
         : {}),
     });
     const embeddings = parseEmbeddingResponse(embedResponse);
+    validateEmbeddingDimensions(embeddings);
     const usage = parseEmbeddingUsage(embedResponse);
     return { embeddings, ...usage };
   }
@@ -382,6 +397,7 @@ export class OpenAIInferenceClient implements InferenceClient {
     const embedResponse = await this.openAI.embeddings.create({
       model: model,
       input: inputs,
+      encoding_format: "float",
       ...(serverConfig.embedding.textModelDimensionOverride !== undefined
         ? {
             dimensions: serverConfig.embedding.textModelDimensionOverride,
@@ -389,6 +405,7 @@ export class OpenAIInferenceClient implements InferenceClient {
         : {}),
     });
     const embedding2D = parseEmbeddingResponse(embedResponse);
+    validateEmbeddingDimensions(embedding2D);
     const usage = parseEmbeddingUsage(embedResponse);
     return { embeddings: embedding2D, ...usage };
   }
@@ -412,7 +429,7 @@ class OllamaInferenceClient implements InferenceClient {
     this.config = config;
     this.ollama = new Ollama({
       host: config.baseUrl,
-      fetch: customFetch, // Use the custom fetch with configurable timeout
+      fetch: createCustomFetch(serverConfig.inference.fetchTimeoutSec * 1000),
     });
   }
 
@@ -545,6 +562,7 @@ class OllamaInferenceClient implements InferenceClient {
       // in the future we want to add a way to split the input into multiple parts.
       truncate: true,
     });
+    validateEmbeddingDimensions(embedding.embeddings);
     const usage = parseEmbeddingUsage(embedding);
     return { embeddings: embedding.embeddings, ...usage };
   }

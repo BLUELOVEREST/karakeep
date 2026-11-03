@@ -196,8 +196,7 @@ export const listsAppRouter = router({
     )
     .query(async ({ ctx }) => {
       const lists = await List.getAll(ctx);
-      const sizes = await Promise.all(lists.map((l) => l.getSize()));
-      return { stats: new Map(lists.map((l, i) => [l.id, sizes[i]])) };
+      return { stats: await List.getSizes(ctx, lists) };
     }),
 
   // Rss endpoints
@@ -251,7 +250,7 @@ export const listsAppRouter = router({
     .input(
       z.object({
         listId: z.string(),
-        email: z.string().email(),
+        email: z.string().trim().toLowerCase().email(),
         role: z.enum(["viewer", "editor"]),
       }),
     )

@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from "react";
 import { ActivityIndicator, Pressable, ScrollView, View } from "react-native";
-import { Stack, useLocalSearchParams } from "expo-router";
-import QueryPageState from "@/components/QueryPageState";
+import { Link, Stack, useLocalSearchParams } from "expo-router";
 import { RowSeparator } from "@/components/ui/GroupedList";
 import { Text } from "@/components/ui/Text";
+import QueryPageState from "@/components/QueryPageState";
 import { useToast } from "@/components/ui/Toast";
 import { useColorScheme } from "@/lib/useColorScheme";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronDown, ChevronRight } from "lucide-react-native";
+import { Check, ChevronDown, ChevronRight, Plus } from "lucide-react-native";
 import { useHeaderHeight } from "expo-router/react-navigation";
 
 import type { ZBookmarkList } from "@karakeep/shared/types/lists";
@@ -63,6 +63,12 @@ const ListPickerPage = () => {
     isPending: isAddingToList,
     variables: addVariables,
   } = useAddBookmarkToList({
+    onSuccess: () => {
+      toast({
+        message: "Added to list!",
+        showProgress: false,
+      });
+    },
     onError,
   });
 
@@ -71,6 +77,12 @@ const ListPickerPage = () => {
     isPending: isRemovingFromList,
     variables: removeVariables,
   } = useRemoveBookmarkFromList({
+    onSuccess: () => {
+      toast({
+        message: "Removed from list!",
+        showProgress: false,
+      });
+    },
     onError,
   });
 
@@ -131,6 +143,18 @@ const ListPickerPage = () => {
           headerShown: true,
           headerTransparent: false,
           headerTitle: "Manage Lists",
+          headerRight: () => (
+            <Link href="/dashboard/lists/new" asChild>
+              <Pressable
+                accessibilityLabel="Create list"
+                accessibilityRole="button"
+                hitSlop={8}
+                className="px-2"
+              >
+                <Plus size={22} color={colors.primary} strokeWidth={2.5} />
+              </Pressable>
+            </Link>
+          ),
         }}
       />
       <ScrollView

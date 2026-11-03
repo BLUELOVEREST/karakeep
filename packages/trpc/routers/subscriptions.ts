@@ -167,7 +167,8 @@ export async function syncStripeDataToDatabase(
               startDate: null,
               endDate: null,
             })
-            .where(eq(subscriptions.stripeCustomerId, customerId));
+            .where(eq(subscriptions.stripeCustomerId, customerId))
+            .run();
 
           // Update user quotas to free tier limits and disable browser crawling
           trx
@@ -178,7 +179,8 @@ export async function syncStripeDataToDatabase(
               browserCrawlingEnabled:
                 serverConfig.quotas.free.browserCrawlingEnabled,
             })
-            .where(eq(users.id, existingSubscription.userId));
+            .where(eq(users.id, existingSubscription.userId))
+            .run();
         });
         addLogFields<"subscription.synced">({
           "subscription.tier": "free",
@@ -249,7 +251,8 @@ export async function syncStripeDataToDatabase(
         trx
           .update(subscriptions)
           .set(subData)
-          .where(eq(subscriptions.stripeCustomerId, customerId));
+          .where(eq(subscriptions.stripeCustomerId, customerId))
+          .run();
 
         if (subData.status === "active" || subData.status === "trialing") {
           // Enable paid tier quotas and browser crawling. A real subscription
@@ -263,7 +266,8 @@ export async function syncStripeDataToDatabase(
                 serverConfig.quotas.paid.browserCrawlingEnabled,
               manualTierName: null,
             })
-            .where(eq(users.id, existingSubscription.userId));
+            .where(eq(users.id, existingSubscription.userId))
+            .run();
         } else {
           // Set free tier quotas and disable browser crawling
           trx
@@ -274,7 +278,8 @@ export async function syncStripeDataToDatabase(
               browserCrawlingEnabled:
                 serverConfig.quotas.free.browserCrawlingEnabled,
             })
-            .where(eq(users.id, existingSubscription.userId));
+            .where(eq(users.id, existingSubscription.userId))
+            .run();
         }
       });
 
@@ -599,7 +604,7 @@ export const subscriptionsRouter = router({
   updateSubscriptionTier: adminSubscriptionsProcedure
     .input(
       z.object({
-        email: z.string().email(),
+        email: z.string().trim().toLowerCase().email(),
         manualTierName: z.string().trim().min(1).max(100).nullable(),
         bookmarkQuota: z.number().int().min(0).nullable().optional(),
         storageQuota: z.number().int().min(0).nullable().optional(),

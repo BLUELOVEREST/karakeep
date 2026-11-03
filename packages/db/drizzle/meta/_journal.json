@@ -673,6 +673,13 @@
       "when": 1786341838287,
       "tag": "0095_absurd_ravenous",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "6",
+      "when": 1786341838288,
+      "tag": "0096_migrate_to_better_auth",
+      "breakpoints": true
     }
   ]
 }

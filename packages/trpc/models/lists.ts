@@ -218,7 +218,10 @@ export abstract class List {
     // The token here acts as an authed context, so we can create
     // an impersonating context for the list owner as long as
     // we don't leak the context.
-    const authedCtx = await buildImpersonatingAuthedContext(listdb.userId);
+    const authedCtx = await buildImpersonatingAuthedContext(
+      listdb.userId,
+      ctx.db,
+    );
     const listObj = List.fromData(
       authedCtx,
       {
@@ -228,11 +231,13 @@ export abstract class List {
       },
       null,
     );
-    const bookmarkIds = await listObj.getBookmarkIds();
+    const numItems = await listObj.getSize();
     const list = listObj.asZBookmarkList();
 
+    // Filtering by listId instead of by ids, because the ids path is scoped to
+    // the list owner and would hide the bookmarks added by collaborators.
     const bookmarks = await Bookmark.loadMulti(authedCtx, {
-      ids: bookmarkIds,
+      listId: listObj.id,
       includeContent: false,
       limit: pagination.limit,
       sortOrder: pagination.order,
@@ -245,29 +250,82 @@ export abstract class List {
         name: list.name,
         description: list.description,
         ownerName: listdb.user.name,
-        numItems: bookmarkIds.length,
+        numItems,
       },
       bookmarks: bookmarks.bookmarks.map((b) => b.asPublicBookmark()),
       nextCursor: bookmarks.nextCursor,
     };
   }
 
+  /**
+   * Ensures that the parent is a list owned by the user, and that
+   * making it the parent of `listId` doesn't introduce a cycle in the
+   * hierarchy. Must run in the same transaction as the write it guards.
+   */
+  private static ensureValidParent(
+    tx: KarakeepDBTransaction,
+    userId: string,
+    parentId: string,
+    listId?: string,
+  ) {
+    const lists = tx
+      .select({ id: bookmarkLists.id, parentId: bookmarkLists.parentId })
+      .from(bookmarkLists)
+      .where(eq(bookmarkLists.userId, userId))
+      .all();
+    const parentById = new Map(lists.map((l) => [l.id, l.parentId]));
+    // Keeping the current parent can't introduce a new cycle. Skipping the
+    // check also keeps lists with legacy parent links editable.
+    if (listId && parentById.get(listId) === parentId) {
+      return;
+    }
+    if (!parentById.has(parentId)) {
+      throw new TRPCError({
+        code: "BAD_REQUEST",
+        message: "Parent list not found",
+      });
+    }
+    // Walk up the ancestors of the new parent. The visited set guards
+    // against cycles that might already exist in the data.
+    const visited = new Set<string>();
+    let current: string | null | undefined = parentId;
+    while (current && !visited.has(current)) {
+      if (current === listId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: "A list can't be nested under one of its descendants",
+        });
+      }
+      visited.add(current);
+      current = parentById.get(current);
+    }
+  }
+
   static async create(
     ctx: AuthedContext,
     input: z.infer<typeof zNewBookmarkListSchema>,
   ): Promise<ManualList | SmartList> {
-    const [result] = await ctx.db
-      .insert(bookmarkLists)
-      .values({
-        name: input.name,
-        description: input.description,
-        icon: input.icon,
-        userId: ctx.user.id,
-        parentId: input.parentId,
-        type: input.type,
-        query: input.query,
-      })
-      .returning();
+    const result = await ctx.db.transaction(
+      (tx) => {
+        if (input.parentId) {
+          this.ensureValidParent(tx, ctx.user.id, input.parentId);
+        }
+        return tx
+          .insert(bookmarkLists)
+          .values({
+            name: input.name,
+            description: input.description,
+            icon: input.icon,
+            userId: ctx.user.id,
+            parentId: input.parentId,
+            type: input.type,
+            query: input.query,
+          })
+          .returning()
+          .get();
+      },
+      { behavior: "immediate" },
+    );
     return this.fromData(
       ctx,
       {
@@ -285,6 +343,39 @@ export abstract class List {
       this.getSharedWithUser(ctx),
     ]);
     return [...ownedLists, ...sharedLists];
+  }
+
+  static async getSizes(
+    ctx: AuthedContext,
+    lists: readonly (ManualList | SmartList)[],
+  ): Promise<Map<string, number>> {
+    const manualListIds = lists
+      .filter((list) => list.type === "manual")
+      .map((list) => list.id);
+    const smartLists = lists.filter((list) => list.type === "smart");
+
+    const [manualSizes, smartSizes] = await Promise.all([
+      manualListIds.length > 0
+        ? ctx.db
+            .select({
+              listId: bookmarksInLists.listId,
+              size: count(),
+            })
+            .from(bookmarksInLists)
+            .where(inArray(bookmarksInLists.listId, manualListIds))
+            .groupBy(bookmarksInLists.listId)
+        : Promise.resolve([]),
+      Promise.all(
+        smartLists.map(
+          async (list) => [list.id, await list.getSize()] as const,
+        ),
+      ),
+    ]);
+
+    const sizes = new Map(lists.map((list) => [list.id, 0]));
+    manualSizes.forEach(({ listId, size }) => sizes.set(listId, size));
+    smartSizes.forEach(([listId, size]) => sizes.set(listId, size));
+    return sizes;
   }
 
   static async getAllOwned(
@@ -534,12 +625,12 @@ export abstract class List {
     }
 
     if (rulesToUpdate.length > 0) {
-      rulesToUpdate.forEach(({ id, event }) => {
+      for (const { id, event } of rulesToUpdate) {
         tx.update(ruleEngineRulesTable)
           .set({ event })
           .where(eq(ruleEngineRulesTable.id, id))
           .run();
-      });
+      }
     }
   }
 
@@ -585,11 +676,17 @@ export abstract class List {
 
     const resultIds: string[] = [];
     const queue: string[] = [this.list.id];
+    // Guard against cycles in the hierarchy
+    const visited = new Set<string>([this.list.id]);
 
     while (queue.length > 0) {
       const id = queue.pop()!;
       const children = adjecencyList.get(id) ?? [];
       children.forEach((childId) => {
+        if (visited.has(childId)) {
+          return;
+        }
+        visited.add(childId);
         queue.push(childId);
         resultIds.push(childId);
       });
@@ -602,23 +699,39 @@ export abstract class List {
     input: z.infer<typeof zEditBookmarkListSchemaWithValidation>,
   ): Promise<void> {
     this.ensureCanManage();
-    const result = await this.ctx.db
-      .update(bookmarkLists)
-      .set({
-        name: input.name,
-        description: input.description,
-        icon: input.icon,
-        parentId: input.parentId,
-        query: input.query,
-        public: input.public,
-      })
-      .where(
-        and(
-          eq(bookmarkLists.id, this.list.id),
-          eq(bookmarkLists.userId, this.ctx.user.id),
-        ),
-      )
-      .returning();
+    // The ancestry check and the write share an immediate transaction so
+    // that concurrent moves can't both pass the check and form a cycle.
+    const result = await this.ctx.db.transaction(
+      (tx) => {
+        if (input.parentId) {
+          List.ensureValidParent(
+            tx,
+            this.ctx.user.id,
+            input.parentId,
+            this.list.id,
+          );
+        }
+        return tx
+          .update(bookmarkLists)
+          .set({
+            name: input.name,
+            description: input.description,
+            icon: input.icon,
+            parentId: input.parentId,
+            query: input.query,
+            public: input.public,
+          })
+          .where(
+            and(
+              eq(bookmarkLists.id, this.list.id),
+              eq(bookmarkLists.userId, this.ctx.user.id),
+            ),
+          )
+          .returning()
+          .all();
+      },
+      { behavior: "immediate" },
+    );
     if (result.length == 0) {
       throw new TRPCError({ code: "NOT_FOUND" });
     }

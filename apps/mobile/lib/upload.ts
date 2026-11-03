@@ -12,6 +12,20 @@ import { useAddBookmarkToList } from "@karakeep/shared-react/hooks/lists";
 import type { Settings } from "./settings";
 import { buildApiHeaders } from "./utils";
 
+// Not every failure has an `{ error }` body: unhandled server errors are plain
+// text, and auth/validation/rate-limit failures use other shapes.
+function getUploadErrorMessage(status: number, body: string): string {
+  try {
+    const parsed = zUploadErrorSchema.safeParse(JSON.parse(body));
+    if (parsed.success) {
+      return parsed.data.error;
+    }
+  } catch {
+    // Not JSON
+  }
+  return `Upload failed (HTTP ${status})`;
+}
+
 export function useUploadAsset(
   settings: Settings,
   options: {
@@ -21,22 +35,10 @@ export function useUploadAsset(
 ) {
   const api = useTRPC();
   const queryClient = useQueryClient();
-  const { mutate: addToList } = useAddBookmarkToList();
+  const { mutateAsync: addToList } = useAddBookmarkToList();
 
-  const { mutate: createBookmark, isPending: isCreatingBookmark } = useMutation(
-    api.bookmarks.createBookmark.mutationOptions({
-      onSuccess: (d) => {
-        queryClient.invalidateQueries(api.bookmarks.getBookmarks.pathFilter());
-        if (options.onSuccess) {
-          options.onSuccess(d);
-        }
-      },
-      onError: (e) => {
-        if (options.onError) {
-          options.onError(e.message);
-        }
-      },
-    }),
+  const { mutateAsync: createBookmark } = useMutation(
+    api.bookmarks.createBookmark.mutationOptions(),
   );
 
   const { mutate: uploadAsset, isPending: isUploading } = useMutation({
@@ -64,38 +66,43 @@ export function useUploadAsset(
           },
         ],
       );
-      return zUploadResponseSchema.parse(await resp.json());
-    },
-    onSuccess: (resp, file) => {
-      const assetId = resp.assetId;
+      const status = resp.info().status;
+      const body: string = await resp.text();
+      if (status < 200 || status >= 300) {
+        throw new Error(getUploadErrorMessage(status, body));
+      }
+      let uploaded;
+      try {
+        uploaded = zUploadResponseSchema.parse(JSON.parse(body));
+      } catch {
+        // e.g. a proxy or captive portal answering with an HTML page
+        throw new Error(`Unexpected server response (HTTP ${status})`);
+      }
+      const assetId = uploaded.assetId;
       const assetType =
-        resp.contentType === "application/pdf" ? "pdf" : "image";
-      createBookmark(
-        {
-          type: BookmarkTypes.ASSET,
-          assetId,
-          assetType,
-          source: "mobile",
-        },
-        {
-          onSuccess: (bookmark) => {
-            if (file.listId) {
-              addToList({ bookmarkId: bookmark.id, listId: file.listId });
-            }
-          },
-        },
-      );
+        uploaded.contentType === "application/pdf" ? "pdf" : "image";
+      const bookmark = await createBookmark({
+        type: BookmarkTypes.ASSET,
+        assetId,
+        assetType,
+        source: "mobile",
+      });
+      if (file.listId) {
+        await addToList({ bookmarkId: bookmark.id, listId: file.listId });
+      }
+      return bookmark;
+    },
+    onSuccess: (bookmark) => {
+      queryClient.invalidateQueries(api.bookmarks.getBookmarks.pathFilter());
+      options.onSuccess?.(bookmark);
     },
     onError: (e) => {
-      if (options.onError) {
-        const err = zUploadErrorSchema.parse(JSON.parse(e.message));
-        options.onError(err.error);
-      }
+      options.onError?.(e.message);
     },
   });
 
   return {
     uploadAsset,
-    isPending: isUploading || isCreatingBookmark,
+    isPending: isUploading,
   };
 }
