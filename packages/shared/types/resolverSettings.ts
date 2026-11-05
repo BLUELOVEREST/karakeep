@@ -12,7 +12,7 @@ export const zResolverRuntimeSettingSchema = z.object({
   resolverId: zResolverIdSchema,
   key: zResolverSecretKeySchema,
   configured: z.boolean(),
-  source: z.enum(["runtime", "environment", "unset"]),
+  source: z.enum(["runtime", "environment", "unset", "cookiecloud"]),
   modifiedAt: z.date().nullable(),
 });
 

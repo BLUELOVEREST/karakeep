@@ -33,6 +33,9 @@ import {
 import { useQueryState } from "nuqs";
 import { ErrorBoundary } from "react-error-boundary";
 import { toast } from "sonner";
+import { useCaptureStatus } from "@karakeep/shared-react/hooks/capture";
+import { captureAdvice } from "@karakeep/shared/types/captureEvents";
+import { captureErrorMessage } from "@karakeep/shared/types/captureErrorMessages";
 
 import { useRecrawlBookmark } from "@karakeep/shared-react/hooks/bookmarks";
 import {
@@ -112,9 +115,25 @@ function VideoSection({ link }: { link: ZBookmarkedLink }) {
 
 function CrawlErrorNotice({ bookmark }: { bookmark: ZBookmark }) {
   const { t } = useTranslation();
+  const capture = useCaptureStatus(
+    bookmark.id,
+    bookmark.content.type === "link" &&
+      bookmark.content.crawlStatus === "pending",
+  );
+  const pending =
+    bookmark.content.type === "link" &&
+    bookmark.content.crawlStatus === "pending";
+  const phase = capture.data?.phase;
   const crawlError =
     bookmark.content.type === BookmarkTypes.LINK
-      ? bookmark.content.crawlError
+      ? (bookmark.content.crawlError ??
+        (capture.data?.code
+          ? {
+              code: capture.data.code,
+              source: capture.data.source,
+              message: captureErrorMessage(capture.data.code),
+            }
+          : null))
       : null;
   const { mutate: recrawlBookmark, isPending } = useRecrawlBookmark({
     onSuccess: () => {
@@ -125,22 +144,42 @@ function CrawlErrorNotice({ bookmark }: { bookmark: ZBookmark }) {
     },
   });
 
+  if (
+    pending ||
+    ["running", "retrying", "awaiting_media"].includes(phase ?? "")
+  ) {
+    const slow =
+      capture.data?.startedAt &&
+      capture.dataUpdatedAt - new Date(capture.data.startedAt).getTime() >
+        180000;
+    return (
+      <Alert className="mx-3 mt-2 w-[calc(100%-1.5rem)]">
+        <Info className="size-4" />
+        <AlertTitle>
+          {phase === "retrying"
+            ? "Retrying capture"
+            : phase === "awaiting_media"
+              ? "Saving media"
+              : "Capture queued or running"}
+        </AlertTitle>
+        {slow && (
+          <AlertDescription>
+            Taking longer than usual; failure has not been confirmed.
+          </AlertDescription>
+        )}
+      </Alert>
+    );
+  }
   if (!crawlError) {
     return null;
   }
 
-  const isPartialResourceFailure = crawlError.source === "reader_image_archive";
+  const isPartialResourceFailure =
+    phase === "partial" || crawlError.source === "reader_image_archive";
   const title = isPartialResourceFailure
-    ? "Some reader images were not saved offline"
+    ? "Some resources were not saved offline"
     : "Bookmark crawl needs attention";
-  const description =
-    crawlError.code === "COOKIE_EXPIRED"
-      ? "Cookie or login state appears to be expired. Update it, then retry the crawl."
-      : crawlError.code === "AUTH_REQUIRED"
-        ? "This source requires login state. Configure it, then retry the crawl."
-        : isPartialResourceFailure
-          ? "The bookmark was saved, but at least one reader image could not be archived."
-          : crawlError.message;
+  const description = `${captureErrorMessage(crawlError.code)} ${captureAdvice(crawlError.code)}`;
 
   return (
     <Alert

@@ -269,6 +269,7 @@ export async function triggerSearchReindex(
 }
 
 export const zvideoRequestSchema = z.object({
+  captureAttemptId: z.string().optional(),
   bookmarkId: z.string(),
   url: z.string(),
   // Explicitly requested by the user (e.g. "Preserve Video"), as opposed to

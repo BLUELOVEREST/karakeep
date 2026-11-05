@@ -17,6 +17,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { KeyRound, Save, Trash2 } from "lucide-react";
 
 import { SettingsPage, SettingsSection } from "./SettingsPage";
+import CookieCloudSettings from "./CookieCloudSettings";
 
 interface ResolverField {
   title: string;
@@ -37,7 +38,8 @@ function formatDate(date: Date | null) {
   }).format(date);
 }
 
-function sourceLabel(source: "runtime" | "environment" | "unset") {
+function sourceLabel(source: ResolverRuntimeSetting["source"]) {
+  if (source === "cookiecloud") return "CookieCloud";
   if (source === "runtime") {
     return "Managed in UI";
   }
@@ -153,9 +155,10 @@ function ResolverSecretCard({ field }: { field: ResolverField }) {
 
 export default function ResolverSettings() {
   const api = useTRPC();
-  const { data, isLoading } = useQuery(
-    api.resolverSettings.status.queryOptions(),
-  );
+  const { data, isLoading } = useQuery({
+    ...api.resolverSettings.status.queryOptions(),
+    refetchInterval: 15000,
+  });
 
   if (isLoading || !data) {
     return <FullPageSpinner />;
@@ -181,8 +184,9 @@ export default function ResolverSettings() {
       status: data.douyin.douyinCookie,
     },
     {
-      title: "WeChat Article Auth Key",
-      description: "Sent by Karakeep when calling the WeChat article resolver.",
+      title: "WeChat Resolver Service Key",
+      description:
+        "Use the same WECHAT_ARTICLE_AUTH_KEY configured on the resolver. This fixed service key is independent of WeChat QR-code login.",
       resolverId: "wechat",
       secretKey: "wechatArticleAuthKey",
       placeholder:
@@ -208,6 +212,7 @@ export default function ResolverSettings() {
       {fields.map((field) => (
         <ResolverSecretCard key={field.secretKey} field={field} />
       ))}
+      <CookieCloudSettings />
     </SettingsPage>
   );
 }

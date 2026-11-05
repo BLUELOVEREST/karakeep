@@ -10,6 +10,7 @@ import { Context } from "@karakeep/trpc";
 
 import trpcAdapter from "./middlewares/trpcAdapter";
 import admin from "./routes/admin";
+import capture from "./routes/capture";
 import assets from "./routes/assets";
 import backups from "./routes/backups";
 import bookmarks from "./routes/bookmarks";
@@ -32,6 +33,7 @@ const v1 = new Hono<{
   };
 }>()
   .route("/highlights", highlights)
+  .route("/capture", capture)
   .route("/bookmarks", bookmarks)
   .route("/lists", lists)
   .route("/tags", tags)

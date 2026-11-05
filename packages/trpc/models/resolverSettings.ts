@@ -1,7 +1,11 @@
-import { and, eq } from "drizzle-orm";
-import { TRPCError } from "@trpc/server";
+import { inArray } from "drizzle-orm";
 
-import { resolverRuntimeConfigs } from "@karakeep/db/schema";
+import { config } from "@karakeep/db/schema";
+import {
+  resolverSourceKey,
+  withResolverSettingsLock,
+  writeResolverSecret,
+} from "@karakeep/shared-server";
 import serverConfig from "@karakeep/shared/config";
 import type {
   ResolverId,
@@ -34,6 +38,12 @@ export class ResolverSettings {
 
   async getStatus(): Promise<ResolverRuntimeSettings> {
     const rows = await this.ctx.db.query.resolverRuntimeConfigs.findMany();
+    const sources = await this.ctx.db.query.config.findMany({
+      where: inArray(
+        config.key,
+        SETTINGS.map((setting) => resolverSourceKey(setting.resolverId)),
+      ),
+    });
 
     const findRuntime = (resolverId: ResolverId, key: ResolverSecretKey) =>
       rows.find((row) => row.resolverId === resolverId && row.key === key);
@@ -48,7 +58,11 @@ export class ResolverSettings {
             key: setting.key,
             configured: !!runtime || setting.envConfigured(),
             source: runtime
-              ? ("runtime" as const)
+              ? sources.find(
+                  (row) => row.key === resolverSourceKey(setting.resolverId),
+                )?.value === "cookiecloud"
+                ? ("cookiecloud" as const)
+                : ("runtime" as const)
               : setting.envConfigured()
                 ? ("environment" as const)
                 : ("unset" as const),
@@ -90,94 +104,25 @@ export class ResolverSettings {
     value: string;
   }) {
     const value = input.value.trim();
-    assertValidResolverSecretKey(input.resolverId, input.key);
-    await syncResolverRuntimeSecret(input.resolverId, input.key, value);
-    await this.ctx.db
-      .insert(resolverRuntimeConfigs)
-      .values({
-        resolverId: input.resolverId,
-        key: input.key,
+    if (!value) throw new Error("Cookie or service key must not be empty");
+    await withResolverSettingsLock(this.ctx.db, () =>
+      writeResolverSecret(this.ctx.db, {
+        ...input,
         value,
         updatedBy: this.ctx.user.id,
-      })
-      .onConflictDoUpdate({
-        target: [resolverRuntimeConfigs.resolverId, resolverRuntimeConfigs.key],
-        set: {
-          value,
-          updatedBy: this.ctx.user.id,
-          modifiedAt: new Date(),
-        },
-      });
+        source: "manual",
+      }),
+    );
   }
 
   async clear(input: { resolverId: ResolverId; key: ResolverSecretKey }) {
-    assertValidResolverSecretKey(input.resolverId, input.key);
-    await syncResolverRuntimeSecret(input.resolverId, input.key, null);
-    await this.ctx.db
-      .delete(resolverRuntimeConfigs)
-      .where(
-        and(
-          eq(resolverRuntimeConfigs.resolverId, input.resolverId),
-          eq(resolverRuntimeConfigs.key, input.key),
-        ),
-      );
-  }
-}
-
-async function syncResolverRuntimeSecret(
-  resolverId: ResolverId,
-  key: ResolverSecretKey,
-  value: string | null,
-) {
-  const target = getResolverConfigSyncTarget(resolverId);
-  if (!target) {
-    return;
-  }
-
-  const response = await fetch(target, {
-    method: "PUT",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ [key]: value }),
-  }).catch((error: unknown) => {
-    throw new TRPCError({
-      code: "BAD_GATEWAY",
-      message: `Failed to reach ${resolverId} resolver config API: ${error instanceof Error ? error.message : String(error)}`,
-    });
-  });
-
-  if (!response.ok) {
-    throw new TRPCError({
-      code: "BAD_GATEWAY",
-      message: `${resolverId} resolver config API returned HTTP ${response.status}`,
-    });
-  }
-}
-
-function getResolverConfigSyncTarget(resolverId: ResolverId): URL | null {
-  if (resolverId === "xiaohongshu") {
-    const endpoint = serverConfig.crawler.xiaohongshuSpiderEndpoint;
-    return endpoint ? new URL("/api/karakeep/v1/config", endpoint) : null;
-  }
-
-  if (resolverId === "douyin") {
-    const endpoint = serverConfig.crawler.douyinResolverEndpoint;
-    return endpoint ? new URL("/api/karakeep/v1/config", endpoint) : null;
-  }
-
-  return null;
-}
-
-function assertValidResolverSecretKey(
-  resolverId: ResolverId,
-  key: ResolverSecretKey,
-) {
-  const expected: Record<ResolverId, ResolverSecretKey> = {
-    xiaohongshu: "xhsCookie",
-    douyin: "douyinCookie",
-    wechat: "wechatArticleAuthKey",
-  };
-
-  if (expected[resolverId] !== key) {
-    throw new Error(`Invalid key "${key}" for resolver "${resolverId}"`);
+    await withResolverSettingsLock(this.ctx.db, () =>
+      writeResolverSecret(this.ctx.db, {
+        ...input,
+        value: null,
+        updatedBy: this.ctx.user.id,
+        source: "manual",
+      }),
+    );
   }
 }

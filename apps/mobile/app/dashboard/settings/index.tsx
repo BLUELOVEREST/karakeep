@@ -113,6 +113,14 @@ export default function Settings() {
 
       <SettingsGroup header="Preferences">
         <SettingsNavigationRow
+          label="Notifications"
+          onPress={() => router.push("/dashboard/settings/notifications")}
+        />
+        <SettingsNavigationRow
+          label="Capture events"
+          onPress={() => router.push("/dashboard/settings/capture-events")}
+        />
+        <SettingsNavigationRow
           label="Theme"
           onPress={() => router.push("/dashboard/settings/theme")}
           value={THEME_LABELS[settings.theme]}

@@ -73,3 +73,6 @@ auth_failures.log
 .codex
 .claude/worktrees
 jean.json
+# Firebase credentials and local Android client configuration
+**/google-services.json
+**/firebase-service-account*.json

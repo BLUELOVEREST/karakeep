@@ -6,10 +6,21 @@ import {
 
 import { createAdminScopedProcedure, router } from "../index";
 import { ResolverSettings } from "../models/resolverSettings";
+import { CookieCloud } from "@karakeep/shared-server";
+import { zCookieCloudSettings } from "@karakeep/shared/types/cookiecloud";
 
 const adminSystemProcedure = createAdminScopedProcedure("system");
 
 export const resolverSettingsRouter = router({
+  cookieCloudStatus: adminSystemProcedure.query(({ ctx }) =>
+    new CookieCloud(ctx.db).status(),
+  ),
+  saveCookieCloud: adminSystemProcedure
+    .input(zCookieCloudSettings)
+    .mutation(({ ctx, input }) => new CookieCloud(ctx.db).save(input)),
+  syncCookieCloud: adminSystemProcedure.mutation(({ ctx }) =>
+    new CookieCloud(ctx.db).sync(),
+  ),
   status: adminSystemProcedure
     .output(zResolverRuntimeSettingsSchema)
     .query(async ({ ctx }) => {

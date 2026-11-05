@@ -859,6 +859,106 @@ export const config = sqliteTable("config", {
   value: text("value").notNull(),
 });
 
+export const captureStates = sqliteTable("captureState", {
+  bookmarkId: text("bookmarkId")
+    .primaryKey()
+    .references(() => bookmarks.id, { onDelete: "cascade" }),
+  attemptId: text("attemptId"),
+  phase: text("phase", {
+    enum: [
+      "running",
+      "retrying",
+      "awaiting_media",
+      "success",
+      "failed",
+      "partial",
+      "recovered",
+    ],
+  }).notNull(),
+  unresolved: integer("unresolved", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  errorCode: text("errorCode"),
+  source: text("source"),
+  retryable: integer("retryable", { mode: "boolean" }),
+  startedAt: integer("startedAt", { mode: "timestamp_ms" }).notNull(),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull(),
+});
+
+export const captureEvents = sqliteTable(
+  "captureEvent",
+  {
+    id: integer("id").primaryKey({ autoIncrement: true }),
+    eventKey: text("eventKey").notNull().unique(),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    bookmarkId: text("bookmarkId").references(() => bookmarks.id, {
+      onDelete: "set null",
+    }),
+    type: text("type", {
+      enum: [
+        "capture.failed",
+        "capture.partial",
+        "capture.recovered",
+        "push.test",
+      ],
+    }).notNull(),
+    platform: text("platform").notNull(),
+    code: text("code"),
+    message: text("message").notNull(),
+    retryable: integer("retryable", { mode: "boolean" }).notNull(),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("captureEvent_user_cursor_idx").on(t.userId, t.id)],
+);
+
+export const pushDevices = sqliteTable(
+  "pushDevice",
+  {
+    id: text("id").primaryKey(),
+    userId: text("userId")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    apiKeyId: text("apiKeyId").references(() => apiKeys.id, {
+      onDelete: "cascade",
+    }),
+    token: text("token").notNull().unique(),
+    scope: text("scope").notNull(),
+    enabled: integer("enabled", { mode: "boolean" }).notNull().default(true),
+    createdAt: integer("createdAt", { mode: "timestamp_ms" }).notNull(),
+    modifiedAt: integer("modifiedAt", { mode: "timestamp_ms" }).notNull(),
+  },
+  (t) => [index("pushDevice_user_idx").on(t.userId)],
+);
+
+export const pushDeliveries = sqliteTable(
+  "pushDelivery",
+  {
+    id: text("id").primaryKey(),
+    eventId: integer("eventId")
+      .notNull()
+      .references(() => captureEvents.id, { onDelete: "cascade" }),
+    deviceId: text("deviceId")
+      .notNull()
+      .references(() => pushDevices.id, { onDelete: "cascade" }),
+    state: text("state", {
+      enum: ["pending", "sending", "sent", "failed", "skipped"],
+    })
+      .notNull()
+      .default("pending"),
+    attempts: integer("attempts").notNull().default(0),
+    availableAt: integer("availableAt", { mode: "timestamp_ms" }).notNull(),
+    leaseUntil: integer("leaseUntil", { mode: "timestamp_ms" }),
+    leaseId: text("leaseId"),
+    lastError: text("lastError"),
+  },
+  (t) => [
+    unique("pushDelivery_event_device_unique").on(t.eventId, t.deviceId),
+    index("pushDelivery_due_idx").on(t.state, t.availableAt),
+  ],
+);
+
 export const ruleEngineRulesTable = sqliteTable(
   "ruleEngineRules",
   {

@@ -10,6 +10,10 @@
 // The asset storage helpers are at the bottom.
 
 import { promises as fs } from "fs";
+import {
+  captureLifecycle,
+  recordCaptureResult,
+} from "./utils/captureLifecycle";
 import * as fsSync from "fs";
 import * as path from "node:path";
 import * as os from "os";
@@ -261,9 +265,15 @@ export class CrawlerWorker {
       {
         run: withWorkerTracing(
           "crawlerWorker.run",
-          withWorkerEventLog("crawlerWorker.run", (job) =>
-            runCrawler(job, queue.opts.defaultJobArgs.numRetries),
-          ),
+          withWorkerEventLog("crawlerWorker.run", async (job) => {
+            await captureLifecycle((service) =>
+              service.started(
+                job.data.bookmarkId,
+                `${job.id}:${job.runNumber}`,
+              ),
+            );
+            return runCrawler(job, queue.opts.defaultJobArgs.numRetries);
+          }),
         ),
         onComplete: async (
           job: DequeuedJob<ZCrawlLinkRequest>,
@@ -281,6 +291,8 @@ export class CrawlerWorker {
               })
               .where(eq(bookmarkLinks.id, bookmarkId));
           }
+          if (bookmarkId)
+            await recordCaptureResult(bookmarkId, `${job.id}:${job.runNumber}`);
         },
         onError: async (job: DequeuedJobError<ZCrawlLinkRequest>) => {
           workerStatsCounter.labels("crawler", "failed").inc();
@@ -292,6 +304,10 @@ export class CrawlerWorker {
             `[Crawler][${jobId}] Crawling job failed: ${job.error}\n${job.error.stack}`,
           );
           const bookmarkId = job.data?.bookmarkId;
+          if (bookmarkId && job.numRetriesLeft > 0)
+            await captureLifecycle((service) =>
+              service.retrying(bookmarkId, `${job.id}:${job.runNumber}`),
+            );
           if (bookmarkId && job.numRetriesLeft == 0) {
             const crawlError = classifyCrawlError(job.error);
             await db.transaction((tx) => {
@@ -340,6 +356,13 @@ export class CrawlerWorker {
                 )
                 .run();
             });
+            await captureLifecycle((service) =>
+              service.finished(
+                bookmarkId,
+                `${job.id}:${job.runNumber}`,
+                crawlError,
+              ),
+            );
           }
         },
       },
@@ -2022,9 +2045,13 @@ async function enqueuePostCrawlJobs(
   await triggerSearchReindex(bookmarkId, enqueueOpts);
 
   if (serverConfig.crawler.downloadVideo && !options.skipVideoDownload) {
+    await captureLifecycle((service) =>
+      service.mediaStarted(bookmarkId, `${job.id}:${job.runNumber}`),
+    );
     // Trigger a potential download of a video from the URL
     await VideoWorkerQueue.enqueue(
       {
+        captureAttemptId: `${job.id}:${job.runNumber}`,
         bookmarkId,
         url,
       },

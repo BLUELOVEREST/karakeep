@@ -20,6 +20,7 @@ const allEnv = z.object({
   PORT: z.coerce.number().default(3000),
   WORKERS_HOST: z.string().default("127.0.0.1"),
   WORKERS_PORT: z.coerce.number().default(0),
+  FCM_SERVICE_ACCOUNT_FILE: z.string().optional(),
   WORKERS_ENABLED_WORKERS: z
     .string()
     .prefault("")
@@ -312,6 +313,7 @@ const serverConfigSchema = allEnv.transform((val, ctx) => {
       disabledWorkers: val.WORKERS_DISABLED_WORKERS,
     },
     apiUrl: val.API_URL,
+    notifications: { fcmServiceAccountFile: val.FCM_SERVICE_ACCOUNT_FILE },
     publicUrl: val.NEXTAUTH_URL,
     publicApiUrl: `${val.NEXTAUTH_URL}/api`,
     signingSecret: () => {

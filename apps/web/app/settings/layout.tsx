@@ -10,6 +10,7 @@ import { TRPCError } from "@trpc/server";
 import { TFunction } from "i18next";
 import {
   ArrowLeft,
+  Bell,
   BarChart3,
   CloudDownload,
   CreditCard,
@@ -103,6 +104,11 @@ const settingsSidebarItems = (
       name: "Resolver Settings",
       icon: <PlugZap size={18} />,
       path: "/settings/resolvers",
+    },
+    {
+      name: "Capture events",
+      icon: <Bell size={18} />,
+      path: "/settings/capture-events",
     },
     {
       name: t("settings.rules.rules"),

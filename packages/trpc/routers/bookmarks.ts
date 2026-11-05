@@ -1,5 +1,5 @@
 import { experimental_trpcMiddleware, TRPCError } from "@trpc/server";
-import { and, eq, gt, inArray, like, lt, or } from "drizzle-orm";
+import { and, eq, gt, inArray, isNotNull, like, lt, or } from "drizzle-orm";
 import { z } from "zod";
 
 import {
@@ -1558,6 +1558,7 @@ export const bookmarksAppRouter = router({
             eq(bookmarks.userId, ctx.user.id),
             or(
               eq(bookmarkLinks.crawlStatus, "failure"),
+              isNotNull(bookmarkLinks.crawlErrorCode),
               lt(bookmarkLinks.crawlStatusCode, 200),
               gt(bookmarkLinks.crawlStatusCode, 299),
             ),

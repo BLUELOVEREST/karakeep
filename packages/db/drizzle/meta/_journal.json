@@ -680,6 +680,13 @@
       "when": 1786341838288,
       "tag": "0096_migrate_to_better_auth",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "6",
+      "when": 1793703841971,
+      "tag": "0097_capture_events_fcm",
+      "breakpoints": true
     }
   ]
 }

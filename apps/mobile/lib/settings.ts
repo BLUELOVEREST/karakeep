@@ -37,6 +37,7 @@ export const DEFAULT_OVERFLOW_ACTIONS: ToolbarActionId[] = [
 ];
 
 const zSettingsSchema = z.object({
+  pushNotificationsEnabled: z.boolean().optional(),
   apiKey: z.string().optional(),
   apiKeyId: z.string().optional(),
   address: z.string().optional().default("https://cloud.karakeep.app"),
@@ -92,6 +93,25 @@ const useSettings = create<AppSettingsState>((set, get) => ({
     },
   },
   setSettings: async (settings) => {
+    const previous = get().settings.settings;
+    if (
+      previous.apiKey !== settings.apiKey ||
+      previous.address !== settings.address
+    ) {
+      try {
+        const { disableNativePush, removeRemotePushRegistration } =
+          await import("./nativePush");
+        await Promise.allSettled([
+          disableNativePush(),
+          ...(previous.pushNotificationsEnabled
+            ? [removeRemotePushRegistration(previous)]
+            : []),
+        ]);
+      } catch {
+        /* A revoked server API key also removes its push registration. */
+      }
+      settings = { ...settings, pushNotificationsEnabled: false };
+    }
     await SecureStore.setItemAsync(SETTING_NAME, JSON.stringify(settings));
     set((_state) => ({ settings: { isLoading: false, settings } }));
   },

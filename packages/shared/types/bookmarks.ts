@@ -151,6 +151,7 @@ export const zCrawlErrorCodeSchema = z.enum([
   "AUTH_REQUIRED",
   "COOKIE_EXPIRED",
   "DOWNLOAD_FAILED",
+  "STORAGE_QUOTA_EXCEEDED",
   "INVALID_RESPONSE",
   "UNSUPPORTED_URL",
   "UNKNOWN",

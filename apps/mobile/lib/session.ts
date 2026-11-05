@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { useTRPC } from "@karakeep/shared-react/trpc";
+import { useTRPC, useTRPCClient } from "@karakeep/shared-react/trpc";
 
 import { clearPersistedCache } from "./offlineCache";
 import { clearOfflineDownloadStorage } from "./offlineDownloadPrefs";
@@ -12,6 +12,7 @@ import useAppSettings from "./settings";
 export function useSession() {
   const { settings, setSettings } = useAppSettings();
   const api = useTRPC();
+  const client = useTRPCClient();
   const queryClient = useQueryClient();
 
   const { mutate: deleteKey } = useMutation(
@@ -19,6 +20,11 @@ export function useSession() {
   );
 
   const logout = useCallback(() => {
+    if (settings.apiKeyId && settings.pushNotificationsEnabled) {
+      void client.capture.unregisterDevice
+        .mutate({ scope: settings.apiKeyId })
+        .catch(() => undefined);
+    }
     if (settings.apiKeyId) {
       deleteKey({ id: settings.apiKeyId });
     }
@@ -30,7 +36,7 @@ export function useSession() {
     // After clearing: it notifies the download status screen, which reloads
     // from storage.
     resetOfflineDownloads();
-  }, [deleteKey, queryClient, settings, setSettings]);
+  }, [client, deleteKey, queryClient, settings, setSettings]);
 
   return {
     logout,

@@ -27,6 +27,8 @@ import serverConfig from "@karakeep/shared/config";
 import logger from "@karakeep/shared/logger";
 
 import { shutdownPromise } from "./exit";
+import { CookieCloudWorker } from "./workers/cookieCloudWorker";
+import { PushWorker } from "./workers/pushWorker";
 
 let backupSchedulingWorker:
   | typeof import("./workers/backupWorker").BackupSchedulingWorker
@@ -143,6 +145,10 @@ async function main() {
   );
 
   await startQueue();
+  const cookieCloudWorker = new CookieCloudWorker();
+  if (isWorkerEnabled("adminMaintenance")) await cookieCloudWorker.start();
+  const pushWorker = new PushWorker();
+  if (isWorkerEnabled("adminMaintenance")) pushWorker.start();
 
   if (workers.some((w) => w.name === "feed")) {
     feedRefreshingWorker?.start();
@@ -176,6 +182,8 @@ async function main() {
   logger.info(
     `Shutting down ${workers.map((w) => w.name).join(", ")} workers ...`,
   );
+  cookieCloudWorker.stop();
+  await pushWorker.stop();
 
   if (workers.some((w) => w.name === "feed")) {
     feedRefreshingWorker?.stop();

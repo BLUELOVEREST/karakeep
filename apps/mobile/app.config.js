@@ -1,4 +1,26 @@
+import { readFileSync } from "node:fs";
+
 const IS_DEV = process.env.APP_VARIANT === "development";
+const GOOGLE_SERVICES_FILE = process.env.GOOGLE_SERVICES_JSON;
+if (GOOGLE_SERVICES_FILE) {
+  const client = JSON.parse(readFileSync(GOOGLE_SERVICES_FILE, "utf8"));
+  const packageName = IS_DEV
+    ? "app.hoarder.hoardermobile.dev"
+    : "app.hoarder.hoardermobile";
+  if (
+    client.type === "service_account" ||
+    client.private_key ||
+    !client.project_info?.project_id ||
+    !client.client?.some(
+      (item) =>
+        item.client_info?.android_client_info?.package_name === packageName,
+    )
+  ) {
+    throw new Error(
+      "GOOGLE_SERVICES_JSON must be an Android client configuration matching the APK package, never a service-account private key.",
+    );
+  }
+}
 
 export default {
   expo: {
@@ -50,6 +72,9 @@ export default {
       buildNumber: "51",
     },
     android: {
+      ...(GOOGLE_SERVICES_FILE
+        ? { googleServicesFile: GOOGLE_SERVICES_FILE }
+        : {}),
       adaptiveIcon: {
         foregroundImage: "./assets/adaptive-icon.png",
         backgroundColor: "#000000",
@@ -71,6 +96,10 @@ export default {
       versionCode: 51,
     },
     plugins: [
+      ...(GOOGLE_SERVICES_FILE
+        ? [["expo-notifications", { defaultChannel: "capture-events" }]]
+        : []),
+      ...(GOOGLE_SERVICES_FILE ? ["./plugins/fcm-opt-in.js"] : []),
       "./plugins/trust-local-certs.js",
       "./plugins/camera-not-required.js",
       "expo-router",
@@ -125,6 +154,7 @@ export default {
       ],
     ],
     extra: {
+      fcmEnabled: !!GOOGLE_SERVICES_FILE,
       router: {
         origin: false,
       },

@@ -1,4 +1,5 @@
 import BookmarkContentLoading from "@/components/bookmarks/BookmarkContentLoading";
+import CaptureStatus from "./CaptureStatus";
 import {
   BookmarkLinkArchivePreview,
   BookmarkLinkBrowserPreview,
@@ -28,14 +29,24 @@ export default function BookmarkLinkView({
   // Every view but the browser one renders crawled content, so there's nothing
   // to show until the crawl is done.
   if (bookmarkPreviewType !== "browser" && isBookmarkStillCrawling(bookmark)) {
-    return <BookmarkContentLoading />;
+    return (
+      <>
+        <CaptureStatus bookmark={bookmark} />
+        <BookmarkContentLoading />
+      </>
+    );
   }
 
   switch (bookmarkPreviewType) {
     case "browser":
       return <BookmarkLinkBrowserPreview bookmark={bookmark} />;
     case "reader":
-      return <BookmarkLinkReaderPreview bookmark={bookmark} />;
+      return (
+        <>
+          <CaptureStatus bookmark={bookmark} />
+          <BookmarkLinkReaderPreview bookmark={bookmark} />
+        </>
+      );
     case "screenshot":
       return <BookmarkLinkScreenshotPreview bookmark={bookmark} />;
     case "archive":

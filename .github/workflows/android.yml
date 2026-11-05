@@ -50,6 +50,18 @@ jobs:
             "ndk;27.1.12297006" \
             "cmake;3.22.1"
 
+      - name: Configure optional Firebase client
+        env:
+          FIREBASE_GOOGLE_SERVICES_BASE64: ${{ secrets.FIREBASE_GOOGLE_SERVICES_BASE64 }}
+        run: |
+          set -euo pipefail
+          if [ -n "${FIREBASE_GOOGLE_SERVICES_BASE64}" ]; then
+            printf '%s' "${FIREBASE_GOOGLE_SERVICES_BASE64}" | base64 -d > "${RUNNER_TEMP}/google-services.json"
+            echo "GOOGLE_SERVICES_JSON=${RUNNER_TEMP}/google-services.json" >> "${GITHUB_ENV}"
+          else
+            echo '::warning::Firebase client config is missing; this APK will have FCM disabled.'
+          fi
+
       - name: Generate Android project
         run: pnpm --filter @karakeep/mobile exec expo prebuild --platform android --no-install
 

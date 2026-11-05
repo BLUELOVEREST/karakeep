@@ -5,6 +5,10 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "firebase-admin": "14.5.0",
+    "node-cron": "^3.0.3",
+    "drizzle-orm": "^0.45.4",
+    "zod": "4.3.6",
     "@karakeep/db": "workspace:^0.1.0",
     "@karakeep/plugins": "workspace:^0.1.0",
     "@karakeep/shared": "workspace:^0.1.0",
@@ -23,6 +27,7 @@
     "winston": "^3.11.0"
   },
   "devDependencies": {
+    "@types/node-cron": "^3.0.11",
     "@karakeep/tsconfig": "workspace:^0.1.0",
     "vite-tsconfig-paths": "^6.1.1",
     "vitest": "^4.1.11"

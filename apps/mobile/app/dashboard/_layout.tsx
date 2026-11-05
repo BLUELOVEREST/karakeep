@@ -289,6 +289,22 @@ export default function Dashboard() {
         }}
       />
       <Stack.Screen
+        name="settings/notifications"
+        options={{
+          ...settingsScreenOptions,
+          title: "Notifications",
+          headerTitle: "Notifications",
+        }}
+      />
+      <Stack.Screen
+        name="settings/capture-events"
+        options={{
+          ...settingsScreenOptions,
+          title: "Capture events",
+          headerTitle: "Capture events",
+        }}
+      />
+      <Stack.Screen
         name="settings/bookmark-default-view"
         options={{
           ...settingsScreenOptions,

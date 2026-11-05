@@ -1,4 +1,5 @@
 import { router } from "../index";
+import { captureRouter } from "./capture";
 import { adminAppRouter } from "./admin";
 import { apiKeysAppRouter } from "./apiKeys";
 import { assetsAppRouter } from "./assets";
@@ -20,6 +21,7 @@ import { usersAppRouter } from "./users";
 import { webhooksAppRouter } from "./webhooks";
 
 export const appRouter = router({
+  capture: captureRouter,
   bookmarks: bookmarksAppRouter,
   apiKeys: apiKeysAppRouter,
   users: usersAppRouter,

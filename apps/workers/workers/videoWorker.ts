@@ -40,6 +40,13 @@ import {
   resolveXiaohongshuMediaDownload,
 } from "./videoDownloader/xiaohongshu";
 import { getVideoContentTypeForDownloadedFile } from "./videoUtils";
+import { captureLifecycle } from "./utils/captureLifecycle";
+import { classifyCrawlError, linkResolverCrawlError } from "./utils/crawlError";
+import type { StructuredCrawlError } from "./utils/crawlError";
+
+type VideoRunResult =
+  | { status: "stored" | "skipped" }
+  | { status: "failed"; error: StructuredCrawlError };
 
 const TMP_FOLDER = path.join(os.tmpdir(), "video_downloads");
 
@@ -47,22 +54,49 @@ export class VideoWorker {
   static async build() {
     logger.info("Starting video worker ...");
 
-    return (await getQueueClient())!.createRunner<ZVideoRequest>(
+    return (await getQueueClient())!.createRunner<
+      ZVideoRequest,
+      VideoRunResult
+    >(
       VideoWorkerQueue,
       {
         run: withWorkerTracing(
           "videoWorker.run",
-          withWorkerEventLog("videoWorker.run", runWorker),
+          withWorkerEventLog("videoWorker.run", runVideoJob),
         ),
-        onComplete: async (job) => {
-          workerStatsCounter.labels("video", "completed").inc();
+        onComplete: async (job, result) => {
+          if (job.data.captureAttemptId)
+            await captureLifecycle((service) =>
+              service.mediaFinished(
+                job.data.bookmarkId,
+                job.data.captureAttemptId!,
+                result.status === "failed" ? result.error : null,
+              ),
+            );
+          workerStatsCounter
+            .labels(
+              "video",
+              result.status === "failed" ? "failed" : "completed",
+            )
+            .inc();
           const jobId = job.id;
           logger.info(
-            `[VideoCrawler][${jobId}] Video Download Completed successfully`,
+            `[VideoCrawler][${jobId}] Video Download outcome: ${result.status}`,
           );
           return Promise.resolve();
         },
         onError: async (job) => {
+          if (job.numRetriesLeft === 0 && job.data?.captureAttemptId)
+            await captureLifecycle((service) =>
+              service.mediaFinished(
+                job.data!.bookmarkId,
+                job.data!.captureAttemptId!,
+                classifyCrawlError(job.error, {
+                  source: "asset_download",
+                  fallbackCode: "DOWNLOAD_FAILED",
+                }),
+              ),
+            );
           workerStatsCounter.labels("video", "failed").inc();
           if (job.numRetriesLeft == 0) {
             workerStatsCounter.labels("video", "failed_permanent").inc();
@@ -121,7 +155,9 @@ function normalizeImageContentType(contentType: string | null | undefined) {
     : ASSET_TYPES.IMAGE_JPEG;
 }
 
-async function runWorker(job: DequeuedJob<ZVideoRequest>) {
+export async function runVideoJob(
+  job: DequeuedJob<ZVideoRequest>,
+): Promise<VideoRunResult> {
   const jobId = job.id;
   const { bookmarkId, onDemand } = job.data;
   addLogFields<"videoWorker.run">({ "bookmark.id": bookmarkId });
@@ -140,7 +176,7 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
     logger.info(
       `[VideoCrawler][${jobId}] Skipping video download from "${url}", because it is disabled in the config.`,
     );
-    return;
+    return { status: "skipped" };
   }
 
   const videoAssetId = newAssetId();
@@ -155,7 +191,13 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
     logger.warn(
       `[VideoCrawler][${jobId}] Skipping Xiaohongshu video download for "${url}", because XIAOHONGSHU_SPIDER_DOWNLOAD_ENDPOINT is not configured.`,
     );
-    return;
+    return {
+      status: "failed",
+      error: linkResolverCrawlError("xiaohongshu", {
+        reason: "resolver is not configured",
+        retryable: false,
+      }),
+    };
   }
 
   if (xiaohongshuDownloadEndpoint && isXiaohongshuUrl(url)) {
@@ -169,7 +211,10 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
       logger.warn(
         `[VideoCrawler][${jobId}] Skipping Xiaohongshu media download for "${url}": ${resolved.reason}`,
       );
-      return;
+      return {
+        status: "failed",
+        error: linkResolverCrawlError("xiaohongshu", resolved),
+      };
     }
 
     if (resolved.coverFile) {
@@ -217,7 +262,7 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
       logger.info(
         `[VideoCrawler][${jobId}] Spider_XHS did not return a video file for "${url}". Skipping video storage.`,
       );
-      return;
+      return { status: "skipped" };
     }
 
     contentType = normalizeVideoContentType(resolved.videoFile.mimeType);
@@ -240,7 +285,10 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
       logger.warn(
         `[VideoCrawler][${jobId}] Skipping Douyin video download for "${url}": ${resolved.reason}`,
       );
-      return;
+      return {
+        status: "failed",
+        error: linkResolverCrawlError("douyin", resolved),
+      };
     }
 
     contentType = normalizeVideoContentType(resolved.file.mimeType);
@@ -266,7 +314,13 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
           error instanceof Error ? error.message : String(error)
         }`,
       );
-      return;
+      return {
+        status: "failed",
+        error: classifyCrawlError(error, {
+          source: "asset_download",
+          fallbackCode: "DOWNLOAD_FAILED",
+        }),
+      };
     }
 
     const proxy = getProxyAgent(normalizedUrl, runProxy);
@@ -289,7 +343,7 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
         logger.info(
           "[VideoCrawler][${jobId}] yt-dlp didn't download anything. Skipping ...",
         );
-        return;
+        return { status: "skipped" };
       }
       assetPath = downloadPath;
       contentType = getVideoContentTypeForDownloadedFile(null, assetPath);
@@ -302,7 +356,7 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
         logger.info(
           `[VideoCrawler][${jobId}] Skipping video download from "${normalizedUrl}", because it's not one of the supported yt-dlp URLs`,
         );
-        return;
+        return { status: "skipped" };
       }
       const genericError = `[VideoCrawler][${jobId}] Failed to download a file from "${normalizedUrl}" to "${assetPath}"`;
       if ("stderr" in err) {
@@ -311,7 +365,13 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
         logger.error(genericError);
       }
       await deleteLeftOverAssetFile(jobId, videoAssetId);
-      return;
+      return {
+        status: "failed",
+        error: classifyCrawlError(e, {
+          source: "asset_download",
+          fallbackCode: "DOWNLOAD_FAILED",
+        }),
+      };
     }
   }
 
@@ -363,10 +423,19 @@ async function runWorker(job: DequeuedJob<ZVideoRequest>) {
         `[VideoCrawler][${jobId}] Skipping video storage due to quota exceeded: ${error.message}`,
       );
       await deleteLeftOverAssetFile(jobId, videoAssetId);
-      return;
+      return {
+        status: "failed",
+        error: {
+          source: "asset_download",
+          code: "STORAGE_QUOTA_EXCEEDED",
+          message: "Storage quota exceeded.",
+          retryable: false,
+        },
+      };
     }
     throw error;
   }
+  return { status: "stored" };
 }
 
 /**

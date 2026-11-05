@@ -192,7 +192,7 @@ Karakeep 支持的 URL：
 已实现：
 
 - 标题、正文、公众号名称、作者、发布时间、封面、正文图片。
-- resolver 使用 `WECHAT_ARTICLE_AUTH_KEY` 做接口保护。
+- resolver 使用固定的 `WECHAT_ARTICLE_AUTH_KEY` 做接口保护，与微信扫码登录态无关；resolver 容器和 Karakeep 必须配置相同的值。
 - 图片由 resolver 下载到 `/downloads/wechat/...`。
 - Karakeep 导入图片并替换正文图片 URL。
 - 修复过深色模式下微信正文内联白色背景过重的问题：Karakeep provider 会移除部分强制白底 inline style。
@@ -212,7 +212,7 @@ WECHAT_ARTICLE_RESOLVER_ENDPOINT=http://wechat-article-exporter:3000/api/karakee
 WECHAT_ARTICLE_AUTH_KEY=<auth-key>
 ```
 
-Wechat resolver 自身需要 fs KV 保存登录态。测试部署中挂载：
+单篇公开文章抓取不再要求扫码登录。公众号搜索、历史列表等上游功能仍需要登录态，可使用 fs KV 持久化；测试部署中挂载：
 
 ```text
 ./data/wechat-article-exporter:/app/.data

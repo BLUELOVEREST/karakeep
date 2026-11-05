@@ -45,9 +45,10 @@ GET /api/public/v1/download?url=ARTICLE_URL&format=json
 X-Auth-Key: YOUR_AUTH_KEY
 ```
 
-The auth key is generated after logging in and follows the login session
-validity. The upstream documentation currently describes the session as valid
-for 4 days.
+This upstream public API uses a key generated after QR-code login, which follows
+the login session validity (typically four days). It is separate from the
+Karakeep endpoint below: that endpoint uses a fixed service key and fetches
+public single articles without a WeChat login session.
 
 ## Desired Architecture
 
@@ -75,7 +76,7 @@ Add a new private API endpoint to the `wechat-article-exporter` fork:
 ```http
 POST /api/karakeep/v1/wechat/article
 Content-Type: application/json
-X-Auth-Key: YOUR_AUTH_KEY
+X-Auth-Key: YOUR_FIXED_SERVICE_KEY
 ```
 
 Request body:
@@ -85,6 +86,12 @@ Request body:
   "url": "https://mp.weixin.qq.com/s/QoMJ26hSXfEP4bHkbRSOHQ"
 }
 ```
+
+Set `WECHAT_ARTICLE_AUTH_KEY` on the resolver container and configure the same
+value in Karakeep's Resolver Settings or environment. The key protects this
+service endpoint only; it is not obtained from `/api/public/v1/authkey` and does
+not expire with WeChat login. A missing resolver key fails closed with HTTP 503.
+After changing the resolver environment, recreate its container.
 
 The endpoint should:
 
@@ -136,8 +143,8 @@ Failure response:
   "source": "wechat",
   "backend": "wechat-article-exporter",
   "url": "https://mp.weixin.qq.com/s/QoMJ26hSXfEP4bHkbRSOHQ",
-  "reason": "AUTH_EXPIRED",
-  "message": "X-Auth-Key is expired. Re-login to refresh the key.",
+  "reason": "AUTH_INVALID",
+  "message": "X-Auth-Key does not match the configured resolver service key.",
   "retryable": false,
   "raw": {}
 }
@@ -147,7 +154,8 @@ Recommended `reason` values:
 
 - `INVALID_URL`: The URL is not a supported WeChat article URL.
 - `AUTH_MISSING`: `X-Auth-Key` was not provided.
-- `AUTH_EXPIRED`: Login session or API key is expired.
+- `AUTH_INVALID`: The supplied key does not match the resolver's service key.
+- `AUTH_UNCONFIGURED`: The resolver has no `WECHAT_ARTICLE_AUTH_KEY` configured.
 - `PROXY_UNAVAILABLE`: No public or private proxy node is available.
 - `RATE_LIMITED`: Public proxy quota or WeChat request limit was hit.
 - `ARTICLE_UNAVAILABLE`: The article was deleted, private, or blocked.
@@ -264,21 +272,10 @@ conflicts.
 
 Start the adapted `wechat-article-exporter` service first.
 
-Then verify the auth key:
-
-```bash
-curl -s \
-  -H "X-Auth-Key: $WECHAT_ARTICLE_AUTH_KEY" \
-  http://127.0.0.1:3000/api/public/v1/authkey
-```
-
-Test upstream single article download:
-
-```bash
-curl -s \
-  -H "X-Auth-Key: $WECHAT_ARTICLE_AUTH_KEY" \
-  "http://127.0.0.1:3000/api/public/v1/download?format=json&url=https%3A%2F%2Fmp.weixin.qq.com%2Fs%2FQoMJ26hSXfEP4bHkbRSOHQ"
-```
+Set a random fixed `WECHAT_ARTICLE_AUTH_KEY` on the resolver and use that same
+value below. No QR-code login is required. The upstream
+`/api/public/v1/authkey` and `/api/public/v1/download` endpoints retain their
+original session authentication and must not be used to validate this service key.
 
 Test the Karakeep-oriented endpoint:
 
@@ -326,8 +323,8 @@ Karakeep should route these domains to the WeChat resolver:
 The `wechat-article-exporter` fork is ready for Karakeep integration when:
 
 - A single WeChat article URL can be resolved through one HTTP request.
-- The endpoint does not require browser UI interaction after login/auth key is
-  configured.
+- The endpoint works without WeChat QR-code login once a matching fixed service
+  key is configured on both sides.
 - The response matches the success and failure contracts above.
 - Image URLs are returned in article order.
 - Proxy, auth, rate-limit, article deletion, and parse failures are explicit.
