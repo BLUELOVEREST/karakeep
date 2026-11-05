@@ -104,7 +104,7 @@ export const users = sqliteTable("user", {
     enum: ["serif", "sans", "mono"],
   }),
 
-  // AI Settings (nullable = opt-in, null means use server default)
+  // Personal AI defaults: tagging on, summarization off. The connection is opt-in.
   autoTaggingEnabled: integer("autoTaggingEnabled", { mode: "boolean" }),
   autoSummarizationEnabled: integer("autoSummarizationEnabled", {
     mode: "boolean",
@@ -122,6 +122,27 @@ export const users = sqliteTable("user", {
   }).default("titlecase-spaces"),
   curatedTagIds: text("curatedTagIds", { mode: "json" }).$type<string[]>(),
   inferredTagLang: text("inferredTagLang"),
+  interfaceLang: text("interfaceLang"),
+});
+
+export const userAIConfigs = sqliteTable("userAIConfig", {
+  userId: text("userId")
+    .primaryKey()
+    .references(() => users.id, { onDelete: "cascade" }),
+  enabled: integer("enabled", { mode: "boolean" }).notNull().default(false),
+  provider: text("provider", { enum: ["openai", "ollama"] }).notNull(),
+  baseUrl: text("baseUrl").notNull(),
+  textModel: text("textModel").notNull(),
+  imageModel: text("imageModel"),
+  outputSchema: text("outputSchema", {
+    enum: ["structured", "json", "plain"],
+  }).notNull(),
+  useMaxCompletionTokens: integer("useMaxCompletionTokens", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  encryptedApiKey: text("encryptedApiKey"),
+  revision: integer("revision").notNull().default(1),
+  updatedAt: integer("updatedAt", { mode: "timestamp_ms" }).notNull(),
 });
 
 export const resolverRuntimeConfigs = sqliteTable(

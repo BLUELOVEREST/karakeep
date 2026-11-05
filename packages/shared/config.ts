@@ -69,6 +69,16 @@ const allEnv = z.object({
   OAUTH_PROVIDER_NAME: z.string().default("Custom Provider"),
   TURNSTILE_SITE_KEY: z.string().optional(),
   TURNSTILE_SECRET_KEY: z.string().optional(),
+  AI_CONFIG_ENCRYPTION_KEY: z.string().optional(),
+  AI_ALLOWED_PRIVATE_ORIGINS: z
+    .string()
+    .default("")
+    .transform((value) =>
+      value
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter(Boolean),
+    ),
   OPENAI_API_KEY: z.string().optional(),
   OPENAI_BASE_URL: z.string().url().optional(),
   OPENAI_PROXY_URL: z.string().url().optional(),
@@ -355,6 +365,10 @@ const serverConfigSchema = allEnv.transform((val, ctx) => {
             from: val.SMTP_FROM,
           }
         : undefined,
+    },
+    userAI: {
+      encryptionKey: val.AI_CONFIG_ENCRYPTION_KEY,
+      allowedPrivateOrigins: val.AI_ALLOWED_PRIVATE_ORIGINS,
     },
     inference: {
       isConfigured: !!val.OPENAI_API_KEY || !!val.OLLAMA_BASE_URL,

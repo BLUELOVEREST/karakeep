@@ -3,7 +3,9 @@ import { ActionButton } from "@/components/ui/action-button";
 import { MarkdownReadonly } from "@/components/ui/markdown/markdown-readonly";
 import { toast } from "@/components/ui/sonner";
 import LoadingSpinner from "@/components/ui/spinner";
-import { useClientConfig } from "@/lib/clientConfig";
+import { canUseUserAI } from "@/lib/userAI";
+import { useQuery } from "@tanstack/react-query";
+import { useTRPC } from "@karakeep/shared-react/trpc";
 import { useTranslation } from "@/lib/i18n/client";
 import { cn } from "@/lib/utils";
 import { ChevronUp, RefreshCw, Sparkles, Trash2 } from "lucide-react";
@@ -18,10 +20,12 @@ function AISummary({
   bookmarkId,
   summary,
   readOnly = false,
+  aiAvailable,
 }: {
   bookmarkId: string;
   summary: string;
   readOnly?: boolean;
+  aiAvailable: boolean;
 }) {
   const [isExpanded, setIsExpanded] = React.useState(false);
   const { mutate: resummarize, isPending: isResummarizing } =
@@ -66,6 +70,7 @@ function AISummary({
                     className="rounded-full bg-gray-200 p-1 text-gray-600 dark:bg-gray-700 dark:text-gray-400"
                     aria-label={isExpanded ? "Collapse" : "Expand"}
                     loading={isResummarizing}
+                    disabled={!aiAvailable}
                     onClick={() => resummarize({ bookmarkId })}
                   >
                     <RefreshCw size={16} />
@@ -117,7 +122,11 @@ export default function SummarizeBookmarkArea({
     },
   });
 
-  const clientConfig = useClientConfig();
+  const api = useTRPC();
+  const { data: userAI } = useQuery(
+    api.userAI.get.queryOptions(undefined, { enabled: !readOnly }),
+  );
+  const aiAvailable = canUseUserAI(userAI);
   if (bookmark.content.type !== BookmarkTypes.LINK) {
     return null;
   }
@@ -128,9 +137,10 @@ export default function SummarizeBookmarkArea({
         bookmarkId={bookmark.id}
         summary={bookmark.summary}
         readOnly={readOnly}
+        aiAvailable={aiAvailable}
       />
     );
-  } else if (!clientConfig.inference.isConfigured || readOnly) {
+  } else if (!aiAvailable || readOnly) {
     return null;
   } else {
     return (

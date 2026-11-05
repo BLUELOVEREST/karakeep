@@ -41,6 +41,7 @@ const adminJobMocks = vi.hoisted(() => ({
   vectorClearIndex: vi.fn(async () => undefined),
   getSearchClient: vi.fn(),
   getVectorStoreClient: vi.fn(),
+  resolverHealth: vi.fn(),
 }));
 
 vi.mock("@karakeep/shared/search", () => ({
@@ -51,6 +52,10 @@ vi.mock("@karakeep/shared/vectorStore", () => ({
   getVectorStoreClient: adminJobMocks.getVectorStoreClient,
 }));
 
+vi.mock("../lib/resolverHealth", () => ({
+  resolverHealthChecker: { check: adminJobMocks.resolverHealth },
+}));
+
 beforeEach<CustomTestContext>(async (context) => {
   vi.clearAllMocks();
   const testContext = await buildTestContext(true);
@@ -58,6 +63,45 @@ beforeEach<CustomTestContext>(async (context) => {
 });
 
 describe("Admin Routes", () => {
+  describe("resolver connections", () => {
+    test<CustomTestContext>("returns the five safe health results for administrators", async ({
+      db,
+    }) => {
+      const owner = db.select().from(users).get()!;
+      const results = [
+        "xiaohongshu",
+        "douyin",
+        "wechat",
+        "coolapk",
+        "smzdm",
+      ].map((id) => ({
+        id,
+        status: "not_configured",
+        checkedAt: new Date(),
+        latencyMs: null,
+        errorCode: null,
+        httpStatus: null,
+      }));
+      adminJobMocks.resolverHealth.mockResolvedValue(results);
+      const api = getApiCaller(db, owner.id, owner.email!, "admin");
+      expect(await api.admin.checkResolverConnections()).toEqual(results);
+      expect(adminJobMocks.resolverHealth).toHaveBeenCalledTimes(1);
+    });
+
+    test<CustomTestContext>("does not probe services for non-administrators or anonymous callers", async ({
+      db,
+      apiCallers,
+    }) => {
+      await expect(
+        apiCallers[0].admin.checkResolverConnections(),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        getApiCaller(db).admin.checkResolverConnections(),
+      ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+      expect(adminJobMocks.resolverHealth).not.toHaveBeenCalled();
+    });
+  });
+
   describe("bulk bookmark jobs", () => {
     const now = new Date("2026-07-26T12:00:00.000Z");
 

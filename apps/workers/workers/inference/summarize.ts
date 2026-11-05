@@ -10,6 +10,7 @@ import {
   ZOpenAIRequest,
 } from "@karakeep/shared-server";
 import serverConfig from "@karakeep/shared/config";
+import { resolveInferenceLanguage } from "@karakeep/shared/aiLanguage";
 import { InferenceClient } from "@karakeep/shared/inference";
 import logger from "@karakeep/shared/logger";
 import { buildSummaryPrompt } from "@karakeep/shared/prompts.server";
@@ -48,13 +49,7 @@ export async function runSummarization(
   bookmarkId: string,
   job: DequeuedJob<ZOpenAIRequest>,
   inferenceClient: InferenceClient,
-) {
-  if (!serverConfig.inference.enableAutoSummarization) {
-    logger.debug(
-      `[inference][${job.id}] Skipping summarization job for bookmark with id "${bookmarkId}" because it's disabled in the config.`,
-    );
-    return;
-  }
+): Promise<"completed" | "skipped"> {
   const jobId = job.id;
 
   logger.info(
@@ -69,6 +64,7 @@ export async function runSummarization(
     columns: {
       autoSummarizationEnabled: true,
       inferredTagLang: true,
+      interfaceLang: true,
     },
   });
 
@@ -83,14 +79,13 @@ export async function runSummarization(
     "bookmark.domain": getBookmarkDomain(bookmarkData.link?.url),
     "bookmark.content_type": bookmarkData.type,
     "crawler.status_code": bookmarkData.link?.crawlStatusCode ?? undefined,
-    "inference.model": serverConfig.inference.textModel,
   });
 
-  if (userSettings?.autoSummarizationEnabled === false) {
+  if (userSettings?.autoSummarizationEnabled !== true) {
     logger.debug(
       `[inference][${jobId}] Skipping summarization job for bookmark with id "${bookmarkId}" because user has disabled auto-summarization.`,
     );
-    return;
+    return "skipped";
   }
 
   let textToSummarize = "";
@@ -107,7 +102,7 @@ export async function runSummarization(
       logger.info(
         `[inference] No content found for link "${bookmarkId}". Skipping summary.`,
       );
-      return;
+      return "skipped";
     }
 
     textToSummarize = `
@@ -122,14 +117,14 @@ URL: ${link.url ?? ""}
     logger.warn(
       `[inference][${jobId}] Bookmark ${bookmarkId} (type: ${bookmarkData.type}) is not a LINK or TEXT type with content, or content is missing. Skipping summary.`,
     );
-    return;
+    return "skipped";
   }
 
   if (!textToSummarize.trim()) {
     logger.info(
       `[inference][${jobId}] No content to summarize for bookmark ${bookmarkId}.`,
     );
-    return;
+    return "skipped";
   }
 
   const prompts = await db.query.customPrompts.findMany({
@@ -147,7 +142,10 @@ URL: ${link.url ?? ""}
   });
 
   const summaryPrompt = await buildSummaryPrompt(
-    userSettings?.inferredTagLang ?? serverConfig.inference.inferredTagLang,
+    resolveInferenceLanguage(
+      userSettings?.inferredTagLang,
+      userSettings?.interfaceLang,
+    ),
     prompts.map((p) => p.text),
     textToSummarize,
     serverConfig.inference.contextLength,
@@ -189,4 +187,5 @@ URL: ${link.url ?? ""}
     priority: job.priority,
     groupId: bookmarkData.userId,
   });
+  return "completed";
 }

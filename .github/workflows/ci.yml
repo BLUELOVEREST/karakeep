@@ -2,13 +2,6 @@ name: CI
 
 on:
   workflow_dispatch:
-  pull_request:
-    branches: ["*"]
-  push:
-    branches:
-      - "main"
-      - "eric/**"
-  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

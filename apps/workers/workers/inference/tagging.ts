@@ -24,8 +24,10 @@ import {
   readAsset,
   setSpanAttributes,
   triggerSearchReindex,
+  UserAIError,
 } from "@karakeep/shared-server";
 import serverConfig from "@karakeep/shared/config";
+import { resolveInferenceLanguage } from "@karakeep/shared/aiLanguage";
 import logger from "@karakeep/shared/logger";
 import { buildImagePrompt } from "@karakeep/shared/prompts";
 import { buildTextPrompt } from "@karakeep/shared/prompts.server";
@@ -168,9 +170,6 @@ async function inferTagsFromImage(
   }
 
   const base64 = asset.toString("base64");
-  addLogFields<"inferenceWorker.run">({
-    "inference.model": serverConfig.inference.imageModel,
-  });
   return inferenceClient.inferFromImage(
     buildImagePrompt(
       inferredTagLang,
@@ -266,7 +265,6 @@ async function inferTagsFromPDF(
     potentialRelevantTags,
   );
   addLogFields<"inferenceWorker.run">({
-    "inference.model": serverConfig.inference.textModel,
     "inference.prompt.size": Buffer.byteLength(prompt, "utf8"),
   });
   return inferenceClient.inferFromText(prompt, {
@@ -295,7 +293,6 @@ async function inferTagsFromText(
     return null;
   }
   addLogFields<"inferenceWorker.run">({
-    "inference.model": serverConfig.inference.textModel,
     "inference.prompt.size": Buffer.byteLength(prompt, "utf8"),
   });
   return await inferenceClient.inferFromText(prompt, {
@@ -385,7 +382,7 @@ async function inferTags(
       parseJsonFromLLMResponse(response.response),
     ).tags;
     logger.info(
-      `[inference][${jobId}] Inferring tag for bookmark "${bookmark.id}" used ${response.totalTokens} tokens and inferred: ${tags}`,
+      `[inference][${jobId}] Inferring tag for bookmark "${bookmark.id}" used ${response.totalTokens} tokens and inferred ${tags.length} tags`,
     );
 
     // Sometimes the tags contain the hashtag symbol, let's strip them out if they do.
@@ -403,11 +400,8 @@ async function inferTags(
     });
 
     return tags;
-  } catch (e) {
-    const responseSneak = response.response.substring(0, 20);
-    throw new Error(
-      `[inference][${jobId}] The model ignored our prompt and didn't respond with the expected JSON: ${JSON.stringify(e)}. Here's a sneak peak from the response: ${responseSneak}`,
-    );
+  } catch {
+    throw new UserAIError("INVALID_RESPONSE");
   }
 }
 
@@ -630,13 +624,7 @@ export async function runTagging(
   bookmarkId: string,
   job: DequeuedJob<ZOpenAIRequest>,
   inferenceClient: InferenceClient,
-) {
-  if (!serverConfig.inference.enableAutoTagging) {
-    logger.debug(
-      `[inference][${job.id}] Skipping tagging job for bookmark with id "${bookmarkId}" because it's disabled in the config.`,
-    );
-    return;
-  }
+): Promise<"completed" | "skipped"> {
   const jobId = job.id;
   const bookmark = await fetchBookmark(bookmarkId);
   if (!bookmark) {
@@ -653,6 +641,7 @@ export async function runTagging(
       tagStyle: true,
       curatedTagIds: true,
       inferredTagLang: true,
+      interfaceLang: true,
     },
   });
 
@@ -660,7 +649,7 @@ export async function runTagging(
     logger.debug(
       `[inference][${jobId}] Skipping tagging job for bookmark with id "${bookmarkId}" because user has disabled auto-tagging.`,
     );
-    return;
+    return "skipped";
   }
 
   // Resolve curated tag names if configured
@@ -702,7 +691,10 @@ export async function runTagging(
     inferenceClient,
     job.abortSignal,
     userSettings?.tagStyle ?? "as-generated",
-    userSettings?.inferredTagLang ?? serverConfig.inference.inferredTagLang,
+    resolveInferenceLanguage(
+      userSettings?.inferredTagLang,
+      userSettings?.interfaceLang,
+    ),
     curatedTagNames,
     potentialRelevantTags,
   );
@@ -711,7 +703,7 @@ export async function runTagging(
     logger.info(
       `[inference][${jobId}] Skipping tagging for bookmark "${bookmark.id}" due to missing content.`,
     );
-    return;
+    return "skipped";
   }
 
   await connectTags(bookmarkId, tags, bookmark.userId);
@@ -735,4 +727,5 @@ export async function runTagging(
 
   // Update the search index
   await triggerSearchReindex(bookmarkId, enqueueOpts);
+  return "completed";
 }

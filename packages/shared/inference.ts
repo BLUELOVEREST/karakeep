@@ -12,6 +12,21 @@ export interface InferenceResponse {
   totalTokens: number | undefined;
 }
 
+export class InvalidInferenceResponseError extends Error {
+  constructor() {
+    super("Invalid inference response.");
+    this.name = "InvalidInferenceResponseError";
+  }
+}
+
+const strictOllamaResponse = z.object({
+  response: z.string().refine((value) => value.trim().length > 0),
+  done: z.literal(true),
+  error: z.never().optional(),
+  eval_count: z.number().int().nonnegative().optional(),
+  prompt_eval_count: z.number().int().nonnegative().optional(),
+});
+
 export interface EmbeddingResponse {
   embeddings: number[][];
   totalTokens: number | undefined;
@@ -169,6 +184,8 @@ const mapOpenAIResponseFormat = (
 
 export interface OpenAIInferenceConfig {
   apiKey: string;
+  fetch?: typeof globalThis.fetch;
+  maxRetries?: number;
   baseURL?: string;
   proxyUrl?: string;
   timeoutSec?: number;
@@ -184,6 +201,8 @@ export interface OpenAIInferenceConfig {
 
 export interface OpenAIEmbeddingConfig {
   apiKey: string;
+  fetch?: typeof globalThis.fetch;
+  maxRetries?: number;
   baseURL?: string;
   proxyUrl?: string;
   timeoutSec?: number;
@@ -192,6 +211,7 @@ export interface OpenAIEmbeddingConfig {
 const buildOpenAIClient = (config: OpenAIEmbeddingConfig) =>
   new OpenAI({
     apiKey: config.apiKey,
+    maxRetries: config.maxRetries,
     baseURL: config.baseURL,
     timeout:
       config.timeoutSec !== undefined ? config.timeoutSec * 1000 : undefined,
@@ -199,12 +219,14 @@ const buildOpenAIClient = (config: OpenAIEmbeddingConfig) =>
       "X-Title": "Karakeep",
       "HTTP-Referer": "https://karakeep.app",
     },
-    fetch: createCustomFetch(
-      config.timeoutSec !== undefined
-        ? config.timeoutSec * 1000
-        : OpenAI.DEFAULT_TIMEOUT,
-      config.proxyUrl,
-    ),
+    fetch:
+      config.fetch ??
+      createCustomFetch(
+        config.timeoutSec !== undefined
+          ? config.timeoutSec * 1000
+          : OpenAI.DEFAULT_TIMEOUT,
+        config.proxyUrl,
+      ),
   });
 
 export class InferenceClientFactory {
@@ -413,6 +435,8 @@ export class OpenAIInferenceClient implements InferenceClient {
 
 export interface OllamaInferenceConfig {
   baseUrl: string;
+  fetch?: typeof globalThis.fetch;
+  strictErrors?: boolean;
   textModel: string;
   imageModel: string;
   contextLength: number;
@@ -421,7 +445,7 @@ export interface OllamaInferenceConfig {
   outputSchema: "structured" | "json" | "plain";
 }
 
-class OllamaInferenceClient implements InferenceClient {
+export class OllamaInferenceClient implements InferenceClient {
   ollama: Ollama;
   private config: OllamaInferenceConfig;
 
@@ -429,7 +453,9 @@ class OllamaInferenceClient implements InferenceClient {
     this.config = config;
     this.ollama = new Ollama({
       host: config.baseUrl,
-      fetch: createCustomFetch(serverConfig.inference.fetchTimeoutSec * 1000),
+      fetch:
+        config.fetch ??
+        createCustomFetch(serverConfig.inference.fetchTimeoutSec * 1000),
     });
   }
 
@@ -456,14 +482,7 @@ class OllamaInferenceClient implements InferenceClient {
       ..._opts,
     };
 
-    let newAbortSignal = undefined;
-    if (optsWithDefaults.abortSignal) {
-      newAbortSignal = AbortSignal.any([optsWithDefaults.abortSignal]);
-      newAbortSignal.onabort = () => {
-        this.ollama.abort();
-      };
-    }
-    const chatCompletion = await this.ollama.generate({
+    const request = {
       model: model,
       format: mapInferenceOutputSchema(
         {
@@ -476,7 +495,6 @@ class OllamaInferenceClient implements InferenceClient {
         },
         this.config.outputSchema,
       ),
-      stream: true,
       keep_alive: this.config.keepAlive,
       options: {
         num_ctx: this.config.contextLength,
@@ -484,6 +502,38 @@ class OllamaInferenceClient implements InferenceClient {
       },
       prompt: prompt,
       images: image ? [image] : undefined,
+    };
+
+    // The SDK's streaming parser logs and skips malformed JSON lines.
+    // Personal calls must parse one complete response without that parser.
+    if (this.config.strictErrors) {
+      let result: unknown;
+      try {
+        result = await this.ollama.generate({ ...request, stream: false });
+      } catch (error) {
+        if (error instanceof SyntaxError)
+          throw new InvalidInferenceResponseError();
+        throw error;
+      }
+      const parsed = strictOllamaResponse.safeParse(result);
+      if (!parsed.success) throw new InvalidInferenceResponseError();
+      return {
+        response: parsed.data.response,
+        totalTokens:
+          (parsed.data.eval_count ?? 0) + (parsed.data.prompt_eval_count ?? 0),
+      };
+    }
+
+    let newAbortSignal = undefined;
+    if (optsWithDefaults.abortSignal) {
+      newAbortSignal = AbortSignal.any([optsWithDefaults.abortSignal]);
+      newAbortSignal.onabort = () => {
+        this.ollama.abort();
+      };
+    }
+    const chatCompletion = await this.ollama.generate({
+      ...request,
+      stream: true,
     });
 
     let totalTokens = 0;

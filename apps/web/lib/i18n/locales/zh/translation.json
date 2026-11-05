@@ -178,6 +178,72 @@
       }
     },
     "ai": {
+      "follow_interface_language": "跟随界面语言",
+      "custom_language": "其他语言",
+      "user_ai": {
+        "title": "个人 AI 连接",
+        "enabled": "启用个人 AI",
+        "provider": "服务类型",
+        "openai": "OpenAI 兼容接口",
+        "base_url": "服务地址（Base URL）",
+        "api_key": "API 密钥",
+        "url_notice": "填写完整服务前缀，内网地址需管理员授权。",
+        "key_configured": "密钥已配置。留空保留，输入新值替换。清除密钥也会关闭 AI。",
+        "key_optional": "OpenAI 兼容接口需要密钥，Ollama 密钥可选。",
+        "clear_key": "清除已保存密钥",
+        "fetch_models": "获取模型列表",
+        "text_model": "文本模型",
+        "vision_model": "图片模型（可选）",
+        "manual_id": "手动输入模型 ID",
+        "select_model": "选择模型",
+        "no_models": "列表没有模型，可手动输入 ID。",
+        "ungrouped": "未分组",
+        "missing_model": "当前选择不在最新列表中，已保留，可继续测试。",
+        "output_schema": "输出格式",
+        "max_completion_tokens": "使用 max_completion_tokens 替代 max_tokens",
+        "test_text": "测试文本模型",
+        "test_vision": "测试图片模型",
+        "privacy_notice": "启用 AI 后，收藏内容可能发送到您选择的服务商。测试仅发送固定内容，不读取收藏，可能产生少量费用。不使用服务器默认服务商。",
+        "vision_notice": "获取列表不代表模型可推理或支持图片。图片测试通过仅代表基本图片理解能力。",
+        "encryption_missing": "无法保存：请服务器管理员配置并持久保存 AI_CONFIG_ENCRYPTION_KEY（32 个随机字节的 base64 编码），然后重启服务。",
+        "saved": "已保存，新调用使用此配置，不会重新处理历史收藏。",
+        "load_failed": "无法加载设置，请刷新重试。",
+        "loading": "正在加载个人 AI 设置...",
+        "output": {
+          "structured": "结构化输出",
+          "json": "JSON",
+          "plain": "纯文本"
+        },
+        "status": {
+          "passed": "基本测试通过",
+          "unsupported": "接口明确不支持图片",
+          "unverified": "尚未验证"
+        },
+        "errors": {
+          "NOT_ENABLED": "个人 AI 已关闭。",
+          "UNCONFIGURED": "请补全个人 AI 连接。",
+          "ENCRYPTION_KEY_MISSING": "服务器加密不可用，请联系管理员。",
+          "DECRYPTION_FAILED": "无法解密凭据，请替换密钥。",
+          "CONFLICT": "设置已被其他页面修改，请刷新后保存。",
+          "KEY_REQUIRED": "请输入 API 密钥。",
+          "KEY_REENTRY_REQUIRED": "目标地址已更改，请重新输入密钥后保存或测试。",
+          "INVALID_URL": "请输入有效服务地址。",
+          "ADDRESS_BLOCKED": "地址已被阻止，请联系管理员授权。",
+          "AUTH_FAILED": "认证失败，请检查密钥。",
+          "MODEL_UNAVAILABLE": "所选模型不可用。",
+          "RATE_LIMITED": "请求过于频繁，请稍后重试。",
+          "QUOTA_EXCEEDED": "服务商额度已耗尽。",
+          "UNSUPPORTED_IMAGE": "接口明确拒绝图片输入。",
+          "INVALID_RESPONSE": "未能验证响应。",
+          "OUTPUT_FORMAT_UNSUPPORTED": "不支持所选输出格式。",
+          "TIMEOUT": "请求超时。",
+          "CONNECTION_FAILED": "无法连接服务商。",
+          "RESPONSE_TOO_LARGE": "响应超过安全大小限制。",
+          "REDIRECT_BLOCKED": "已阻止服务商重定向。",
+          "UNKNOWN": "请求未能完成。",
+          "REQUEST_FAILED": "请求失败，请刷新检查最新版本后重试。当前未保存的修改尚未保存。"
+        }
+      },
       "ai_settings": "AI设置",
       "tagging_rules": "标签规则",
       "tagging_rule_description": "在此添加的提示将包含在模型生成标签的规则中。您可以在提示预览部分查看最终的提示。",
@@ -769,6 +835,26 @@
       "unlimited": "无限制"
     },
     "service_connections": {
+      "resolver_title": "平台解析服务",
+      "resolver_health_notice": "仅检查服务连通性，不代表 Cookie 有效或内容一定能抓取成功。",
+      "query_failed": "暂时无法检查解析服务连接，正在自动重试。",
+      "latency": "响应耗时：{{ms}} 毫秒",
+      "last_checked": "检查时间：{{time}}",
+      "resolvers": {
+        "xiaohongshu": "小红书",
+        "douyin": "抖音",
+        "wechat": "微信公众号",
+        "coolapk": "酷安",
+        "smzdm": "什么值得买"
+      },
+      "errors": {
+        "HTTP_ERROR": "健康接口返回 HTTP {{status}}。",
+        "INVALID_RESPONSE": "服务未返回有效的健康状态。",
+        "TIMEOUT": "健康检查超时。",
+        "CONNECTION_FAILED": "无法连接到健康接口。",
+        "HEALTH_CHECK_UNSUPPORTED": "当前解析服务版本或后端不支持健康检查，升级后可启用监测。",
+        "INVALID_CONFIGURATION": "解析服务地址必须是有效的 HTTP 或 HTTPS URL。"
+      },
       "title": "服务连接",
       "description": "监测外部系统依赖的健康状况和连接性",
       "search_engine": "搜索引擎",
@@ -777,7 +863,9 @@
       "status": {
         "not_configured": "未配置",
         "connected": "已连接",
-        "disconnected": "已断开连接"
+        "disconnected": "已断开连接",
+        "not_checked": "未检查",
+        "check_failed": "检查失败"
       },
       "vector_store": "向量存储"
     },

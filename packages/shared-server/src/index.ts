@@ -8,6 +8,7 @@ export * from "./tracing";
 export * from "./eventLogTypes";
 export { CookieCloud } from "./cookiecloud";
 export { CaptureEvents } from "./captureEvents";
+export * from "./userAI";
 export { FcmTransport, PushDeliveryError } from "./fcm";
 export type { NotificationTransport, PushMessage } from "./fcm";
 export { PushDispatcher } from "./pushDispatcher";

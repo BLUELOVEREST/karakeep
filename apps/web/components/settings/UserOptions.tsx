@@ -32,11 +32,21 @@ import { SettingsSection } from "./SettingsPage";
 
 const LanguageSelect = () => {
   const lang = useInterfaceLang();
+  const { t } = useTranslation();
+  const { mutateAsync } = useUpdateUserSettings();
   return (
     <Select
       value={lang}
       onValueChange={async (val) => {
-        await updateInterfaceLang(val);
+        try {
+          await mutateAsync({ interfaceLang: val });
+          await updateInterfaceLang(val);
+        } catch {
+          toast({
+            description: t("common.something_went_wrong"),
+            variant: "destructive",
+          });
+        }
       }}
     >
       <SelectTrigger className="h-11">

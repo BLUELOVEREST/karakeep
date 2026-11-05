@@ -46,11 +46,13 @@ import {
 } from "@karakeep/shared/types/bookmarks";
 import { setUrlHostnameFromResolvedAddress } from "@karakeep/shared/utils/url";
 import { getVectorStoreClient } from "@karakeep/shared/vectorStore";
+import { zResolverHealth } from "@karakeep/shared/types/resolverHealth";
 
 import { setUserPassword } from "../auth";
 import { createAdminScopedProcedure, router } from "../index";
 import { Bookmark } from "../models/bookmarks";
 import { User } from "../models/users";
+import { resolverHealthChecker } from "../lib/resolverHealth";
 import { syncStripeDataToDatabase } from "./subscriptions";
 
 const adminBookmarksProcedure = createAdminScopedProcedure("bookmarks");
@@ -697,6 +699,9 @@ export const adminAppRouter = router({
         // Unused for now
       };
     }),
+  checkResolverConnections: adminSystemProcedure
+    .output(z.array(zResolverHealth))
+    .query(() => resolverHealthChecker.check()),
   checkConnections: adminSystemProcedure
     .output(
       z.object({

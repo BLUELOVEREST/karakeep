@@ -61,15 +61,11 @@ const settingsSidebarItems = (
           },
         ]
       : []),
-    ...(serverConfig.inference.isConfigured
-      ? [
-          {
-            name: t("settings.ai.ai_settings"),
-            icon: <Sparkles size={18} />,
-            path: "/settings/ai",
-          },
-        ]
-      : []),
+    {
+      name: t("settings.ai.ai_settings"),
+      icon: <Sparkles size={18} />,
+      path: "/settings/ai",
+    },
     {
       name: t("settings.feeds.rss_subscriptions"),
       icon: <Rss size={18} />,

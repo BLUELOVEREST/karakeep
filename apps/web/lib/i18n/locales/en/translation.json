@@ -248,6 +248,72 @@
       }
     },
     "ai": {
+      "follow_interface_language": "Follow Interface Language",
+      "custom_language": "Other language",
+      "user_ai": {
+        "title": "Personal AI connection",
+        "enabled": "Enable personal AI",
+        "provider": "Service type",
+        "openai": "OpenAI-compatible",
+        "base_url": "Base URL",
+        "api_key": "API key",
+        "url_notice": "Use the complete service prefix. Private addresses require administrator approval.",
+        "key_configured": "Key configured. Leave blank to keep it or enter a replacement. Clearing disables AI.",
+        "key_optional": "OpenAI-compatible services require a key. Ollama keys are optional.",
+        "clear_key": "Clear stored key",
+        "fetch_models": "Fetch model list",
+        "text_model": "Text model",
+        "vision_model": "Image model (optional)",
+        "manual_id": "Enter model ID manually",
+        "select_model": "Select a model",
+        "no_models": "No models listed. Enter an ID manually.",
+        "ungrouped": "Ungrouped",
+        "missing_model": "Not in the latest list. Selection preserved; testing is still available.",
+        "output_schema": "Output format",
+        "max_completion_tokens": "Use max_completion_tokens instead of max_tokens",
+        "test_text": "Test text model",
+        "test_vision": "Test image model",
+        "privacy_notice": "Enabled AI may send bookmark content to your chosen provider. Tests use fixed content, never bookmarks, and may incur small charges. No server-default provider is used.",
+        "vision_notice": "A model list does not verify inference or image support. A passed image test only verifies basic image understanding.",
+        "encryption_missing": "Saving blocked: ask your server administrator to configure and persist AI_CONFIG_ENCRYPTION_KEY (32 random bytes encoded as base64) and restart the service.",
+        "saved": "Saved. New calls use this configuration; existing bookmarks are not reprocessed.",
+        "load_failed": "Could not load settings. Reload to retry.",
+        "loading": "Loading personal AI settings...",
+        "output": {
+          "structured": "Structured output",
+          "json": "JSON",
+          "plain": "Plain text"
+        },
+        "status": {
+          "passed": "Basic test passed",
+          "unsupported": "Image input explicitly unsupported",
+          "unverified": "Unverified"
+        },
+        "errors": {
+          "NOT_ENABLED": "Personal AI is disabled.",
+          "UNCONFIGURED": "Complete your personal AI connection.",
+          "ENCRYPTION_KEY_MISSING": "Server encryption unavailable. Contact your administrator.",
+          "DECRYPTION_FAILED": "Cannot decrypt credentials. Replace the key.",
+          "CONFLICT": "Settings changed elsewhere. Reload before saving.",
+          "KEY_REQUIRED": "Enter an API key.",
+          "KEY_REENTRY_REQUIRED": "Destination changed. Re-enter the API key before saving or testing.",
+          "INVALID_URL": "Enter a valid service URL.",
+          "ADDRESS_BLOCKED": "Address blocked. Ask your administrator to allow this destination.",
+          "AUTH_FAILED": "Authentication failed. Check your API key.",
+          "MODEL_UNAVAILABLE": "Selected model unavailable.",
+          "RATE_LIMITED": "Rate limited. Retry later.",
+          "QUOTA_EXCEEDED": "Provider quota exhausted.",
+          "UNSUPPORTED_IMAGE": "Endpoint explicitly rejected image input.",
+          "INVALID_RESPONSE": "Response could not be verified.",
+          "OUTPUT_FORMAT_UNSUPPORTED": "Output format unsupported.",
+          "TIMEOUT": "Request timed out.",
+          "CONNECTION_FAILED": "Could not connect to provider.",
+          "RESPONSE_TOO_LARGE": "Response exceeded safe size limit.",
+          "REDIRECT_BLOCKED": "Provider redirect blocked.",
+          "UNKNOWN": "Request could not be completed.",
+          "REQUEST_FAILED": "Request failed. Reload to check the latest revision before retrying. Unsaved changes have not been saved."
+        }
+      },
       "ai_settings": "AI Settings",
       "auto_tagging": "Auto-tagging",
       "auto_tagging_description": "Automatically generate tags for your bookmarks using AI.",
@@ -697,6 +763,26 @@
       "server_version": "Server Version"
     },
     "service_connections": {
+      "resolver_title": "Platform resolvers",
+      "resolver_health_notice": "Service connectivity only; cookie validity and successful content capture are not verified.",
+      "query_failed": "Unable to check resolver connections. Retrying automatically.",
+      "latency": "Response: {{ms}} ms",
+      "last_checked": "Checked: {{time}}",
+      "resolvers": {
+        "xiaohongshu": "Xiaohongshu",
+        "douyin": "Douyin",
+        "wechat": "WeChat Articles",
+        "coolapk": "Coolapk",
+        "smzdm": "SMZDM"
+      },
+      "errors": {
+        "HTTP_ERROR": "Health endpoint returned HTTP {{status}}.",
+        "INVALID_RESPONSE": "The service did not return a valid healthy status.",
+        "TIMEOUT": "Health check timed out.",
+        "CONNECTION_FAILED": "Unable to connect to the health endpoint.",
+        "HEALTH_CHECK_UNSUPPORTED": "This resolver version or backend does not support health checks. Upgrade it to enable monitoring.",
+        "INVALID_CONFIGURATION": "The resolver endpoint must be a valid HTTP or HTTPS URL."
+      },
       "title": "Service Connections",
       "description": "Monitor the health and connectivity of external system dependencies",
       "search_engine": "Search Engine",
@@ -706,7 +792,9 @@
       "status": {
         "not_configured": "Not Configured",
         "connected": "Connected",
-        "disconnected": "Disconnected"
+        "disconnected": "Disconnected",
+        "not_checked": "Not checked",
+        "check_failed": "Check failed"
       }
     },
     "background_jobs": {

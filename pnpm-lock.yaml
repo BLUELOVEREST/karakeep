@@ -1416,6 +1416,9 @@ importers:
       html-to-text:
         specifier: ^9.0.5
         version: 9.0.5
+      ipaddr.js:
+        specifier: ^2.2.0
+        version: 2.2.0
       js-tiktoken:
         specifier: ^1.0.20
         version: 1.0.20

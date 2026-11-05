@@ -20,6 +20,7 @@ import {
   AssetPreprocessingQueue,
   buildCrawlIdempotencyKey,
   EmbeddingsQueue,
+  getUserAIClient,
   LinkCrawlerQueue,
   logEvent,
   LowPriorityCrawlerQueue,
@@ -28,13 +29,12 @@ import {
   QuotaService,
   SUPPORTED_BOOKMARK_ASSET_TYPES,
   triggerSearchReindex,
+  UserAIError,
   VideoWorkerQueue,
 } from "@karakeep/shared-server";
 import serverConfig from "@karakeep/shared/config";
-import {
-  EmbeddingClientFactory,
-  InferenceClientFactory,
-} from "@karakeep/shared/inference";
+import { resolveInferenceLanguage } from "@karakeep/shared/aiLanguage";
+import { EmbeddingClientFactory } from "@karakeep/shared/inference";
 import logger from "@karakeep/shared/logger";
 import { buildSummaryPrompt } from "@karakeep/shared/prompts.server";
 import { EnqueueOptions } from "@karakeep/shared/queueing";
@@ -1603,11 +1603,23 @@ export const bookmarksAppRouter = router({
         "bookmark.id": input.bookmarkId,
       });
 
-      const inferenceClient = InferenceClientFactory.build();
+      const inferenceClient = await getUserAIClient(
+        ctx.db,
+        ctx.user.id,
+        "text",
+      ).catch((error: unknown) => {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            error instanceof UserAIError
+              ? error.message
+              : "Personal AI configuration could not be loaded.",
+        });
+      });
       if (!inferenceClient) {
         throw new TRPCError({
           code: "BAD_REQUEST",
-          message: "No inference client configured",
+          message: new UserAIError("UNCONFIGURED").message,
         });
       }
       const bookmark = await ctx.db.query.bookmarkLinks.findFirst({
@@ -1652,11 +1664,15 @@ Author: ${bookmark.author ?? ""}
         where: eq(users.id, ctx.user.id),
         columns: {
           inferredTagLang: true,
+          interfaceLang: true,
         },
       });
 
       const summaryPrompt = await buildSummaryPrompt(
-        userSettings?.inferredTagLang ?? serverConfig.inference.inferredTagLang,
+        resolveInferenceLanguage(
+          userSettings?.inferredTagLang,
+          userSettings?.interfaceLang,
+        ),
         prompts.map((p) => p.text),
         bookmarkDetails,
         serverConfig.inference.contextLength,

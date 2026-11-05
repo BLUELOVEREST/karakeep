@@ -18,6 +18,7 @@ import { rulesAppRouter } from "./rules";
 import { subscriptionsRouter } from "./subscriptions";
 import { tagsAppRouter } from "./tags";
 import { usersAppRouter } from "./users";
+import { userAIRouter } from "./userAI";
 import { webhooksAppRouter } from "./webhooks";
 
 export const appRouter = router({
@@ -25,6 +26,7 @@ export const appRouter = router({
   bookmarks: bookmarksAppRouter,
   apiKeys: apiKeysAppRouter,
   users: usersAppRouter,
+  userAI: userAIRouter,
   lists: listsAppRouter,
   tags: tagsAppRouter,
   prompts: promptsAppRouter,

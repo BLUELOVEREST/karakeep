@@ -15,6 +15,7 @@ import {
   addLogFields,
   AssetPreprocessingQueue,
   EmbeddingsQueue,
+  getUserAIClient,
   newAssetId,
   OpenAIQueue,
   QuotaService,
@@ -24,7 +25,6 @@ import {
   triggerSearchReindex,
 } from "@karakeep/shared-server";
 import serverConfig from "@karakeep/shared/config";
-import { InferenceClientFactory } from "@karakeep/shared/inference";
 import logger from "@karakeep/shared/logger";
 import { buildOCRPrompt } from "@karakeep/shared/prompts";
 import {
@@ -135,14 +135,16 @@ async function readImageText(buffer: Buffer) {
   }
 }
 
-async function readImageTextWithLLM(
+export async function readImageTextWithLLM(
   buffer: Buffer,
   contentType: string,
+  userId: string,
+  abortSignal: AbortSignal,
 ): Promise<string | null> {
-  const inferenceClient = InferenceClientFactory.build();
+  const inferenceClient = await getUserAIClient(db, userId, "vision");
   if (!inferenceClient) {
     logger.warn(
-      "[assetPreprocessing] LLM OCR is enabled but no inference client is configured. Falling back to Tesseract.",
+      "[assetPreprocessing] Personal vision AI is unavailable. Falling back to Tesseract.",
     );
     return readImageText(buffer);
   }
@@ -156,6 +158,7 @@ async function readImageTextWithLLM(
     base64,
     {
       schema: null,
+      abortSignal,
     },
   );
 
@@ -283,6 +286,7 @@ async function extractAndSaveImageText(
   contentType: string,
   bookmark: NonNullable<Awaited<ReturnType<typeof getBookmark>>>,
   isFixMode: boolean,
+  abortSignal: AbortSignal,
 ): Promise<boolean> {
   {
     const alreadyHasText = !!bookmark.asset.content;
@@ -300,7 +304,12 @@ async function extractAndSaveImageText(
       `[assetPreprocessing][${jobId}] Attempting to extract text from image using LLM OCR.`,
     );
     try {
-      imageText = await readImageTextWithLLM(asset, contentType);
+      imageText = await readImageTextWithLLM(
+        asset,
+        contentType,
+        bookmark.userId,
+        abortSignal,
+      );
     } catch (e) {
       logger.error(
         `[assetPreprocessing][${jobId}] Failed to read image text with LLM: ${e}`,
@@ -439,6 +448,7 @@ async function run(req: DequeuedJob<AssetPreprocessingRequest>) {
         metadata.contentType,
         bookmark,
         isFixMode,
+        req.abortSignal,
       );
       anythingChanged ||= extractedText;
       break;

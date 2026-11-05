@@ -33,9 +33,13 @@ import {
 } from "@/components/ui/select";
 import { toast } from "@/components/ui/sonner";
 import { Switch } from "@/components/ui/switch";
-import { useClientConfig } from "@/lib/clientConfig";
 import { useTranslation } from "@/lib/i18n/client";
 import { useUserSettings } from "@/lib/userSettings";
+import { useInterfaceLang } from "@/lib/userLocalSettings/bookmarksLayout";
+import {
+  DEFAULT_INFERENCE_LANGUAGE,
+  resolveInferenceLanguage,
+} from "@karakeep/shared/aiLanguage";
 import { cn } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -60,11 +64,13 @@ import {
 import { zUpdateUserSettingsSchema } from "@karakeep/shared/types/users";
 
 import { SettingsPage, SettingsSection } from "./SettingsPage";
+import UserAIConnection from "./UserAIConnection";
+import InferenceLanguagePicker from "./InferenceLanguagePicker";
 
 export function AIPreferences() {
   const { t } = useTranslation();
-  const clientConfig = useClientConfig();
   const settings = useUserSettings();
+  const interfaceLang = useInterfaceLang();
 
   const { mutate: updateSettings, isPending } = useUpdateUserSettings({
     onSuccess: () => {
@@ -84,18 +90,19 @@ export function AIPreferences() {
     resolver: zodResolver(zUpdateUserSettingsSchema),
     values: settings
       ? {
-          inferredTagLang: settings.inferredTagLang ?? "",
+          inferredTagLang:
+            settings.inferredTagLang ?? DEFAULT_INFERENCE_LANGUAGE,
           autoTaggingEnabled: settings.autoTaggingEnabled,
           autoSummarizationEnabled: settings.autoSummarizationEnabled,
         }
       : undefined,
   });
 
-  const showAutoTagging = clientConfig.inference.enableAutoTagging;
-  const showAutoSummarization = clientConfig.inference.enableAutoSummarization;
+  const showAutoTagging = true;
+  const showAutoSummarization = true;
 
   const onSubmit = (data: z.infer<typeof zUpdateUserSettingsSchema>) => {
-    updateSettings(data);
+    updateSettings({ ...data, interfaceLang });
   };
 
   return (
@@ -118,18 +125,9 @@ export function AIPreferences() {
                     {t("settings.ai.inference_language_description")}
                   </FieldDescription>
                 </FieldContent>
-                <Input
-                  {...field}
-                  id="inferredTagLang"
-                  value={field.value ?? ""}
-                  onChange={(e) =>
-                    field.onChange(
-                      e.target.value.length > 0 ? e.target.value : null,
-                    )
-                  }
-                  aria-invalid={fieldState.invalid}
-                  placeholder={`Default (${clientConfig.inference.inferredTagLang})`}
-                  type="text"
+                <InferenceLanguagePicker
+                  value={field.value ?? null}
+                  onChange={field.onChange}
                 />
                 {fieldState.invalid && (
                   <FieldError errors={[fieldState.error]} />
@@ -192,7 +190,7 @@ export function AIPreferences() {
                   <Switch
                     id="autoSummarizationEnabled"
                     name={field.name}
-                    checked={field.value ?? true}
+                    checked={field.value ?? false}
                     onCheckedChange={field.onChange}
                     aria-invalid={fieldState.invalid}
                   />
@@ -764,7 +762,6 @@ export function PromptDemo() {
   const { t } = useTranslation();
   const { data: prompts } = useQuery(api.prompts.list.queryOptions());
   const settings = useUserSettings();
-  const clientConfig = useClientConfig();
 
   const tagStyle = settings?.tagStyle ?? "as-generated";
   const curatedTagIds = settings?.curatedTagIds ?? [];
@@ -774,8 +771,10 @@ export function PromptDemo() {
       { enabled: curatedTagIds.length > 0 },
     ),
   );
-  const inferredTagLang =
-    settings?.inferredTagLang ?? clientConfig.inference.inferredTagLang;
+  const inferredTagLang = resolveInferenceLanguage(
+    settings?.inferredTagLang,
+    settings?.interfaceLang,
+  );
 
   // Resolve curated tag names for preview
   const curatedTagNames =
@@ -876,6 +875,7 @@ export default function AISettings() {
   const { t } = useTranslation();
   return (
     <SettingsPage title={t("settings.ai.ai_settings")}>
+      <UserAIConnection />
       <AIPreferences />
       <TagStyleSelector />
       <CuratedTagsSelector />

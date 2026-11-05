@@ -5,6 +5,7 @@ import { useTranslation } from "@/lib/i18n/client";
 import { useQuery } from "@tanstack/react-query";
 
 import { useTRPC } from "@karakeep/shared-react/trpc";
+import type { ZResolverHealth } from "@karakeep/shared/types/resolverHealth";
 
 function ConnectionStatus({
   label,
@@ -12,12 +13,20 @@ function ConnectionStatus({
   connected,
   pluginName,
   error,
+  notChecked = false,
+  statusLabel,
+  checkedAt,
+  latencyMs,
 }: {
   label: string;
   configured: boolean;
   connected: boolean;
   pluginName?: string;
   error?: string;
+  notChecked?: boolean;
+  statusLabel?: string;
+  checkedAt?: Date;
+  latencyMs?: number | null;
 }) {
   const { t } = useTranslation();
 
@@ -43,12 +52,20 @@ function ConnectionStatus({
     }
   }
 
+  if (notChecked) {
+    statusText = t("admin.service_connections.status.not_checked");
+    badgeColor =
+      "bg-yellow-50 text-yellow-800 dark:bg-yellow-900/20 dark:text-yellow-300";
+    iconColor = "text-yellow-500";
+    borderColor = "border-yellow-200 dark:border-yellow-800";
+  }
+
   return (
     <div
       className={`rounded-lg border ${borderColor} bg-background p-5 shadow-sm transition-all`}
     >
-      <div className="mb-3 flex items-center justify-between">
-        <div>
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="min-w-0 break-words">
           <div className="text-base font-semibold">{label}</div>
           {pluginName && (
             <div className="mt-1 text-xs text-muted-foreground">
@@ -57,7 +74,7 @@ function ConnectionStatus({
           )}
         </div>
         <div
-          className={`flex h-2 w-2 items-center justify-center rounded-full ${iconColor}`}
+          className={`flex h-2 w-2 shrink-0 items-center justify-center rounded-full ${iconColor}`}
         >
           <div
             className={`h-2 w-2 rounded-full ${connected && configured ? "animate-pulse" : ""} bg-current`}
@@ -68,41 +85,117 @@ function ConnectionStatus({
         <span
           className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badgeColor}`}
         >
-          {statusText}
+          {statusLabel ?? statusText}
         </span>
       </div>
       {error && (
-        <div className="mt-3 rounded-md bg-red-50 p-2 dark:bg-red-900/10">
-          <p className="text-xs text-red-600 dark:text-red-400" title={error}>
-            {error.length > 60 ? `${error.substring(0, 60)}...` : error}
+        <div
+          className={`mt-3 rounded-md p-2 ${notChecked ? "bg-yellow-50 dark:bg-yellow-900/10" : "bg-red-50 dark:bg-red-900/10"}`}
+        >
+          <p
+            className={`break-words text-xs ${notChecked ? "text-yellow-800 dark:text-yellow-300" : "text-red-600 dark:text-red-400"}`}
+            title={error}
+          >
+            {error}
           </p>
+        </div>
+      )}
+      {checkedAt && (
+        <div className="mt-3 space-y-1 break-words text-xs text-muted-foreground">
+          {latencyMs != null && (
+            <div>
+              {t("admin.service_connections.latency", { ms: latencyMs })}
+            </div>
+          )}
+          <div>
+            {t("admin.service_connections.last_checked", {
+              time: checkedAt.toLocaleTimeString(),
+            })}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function ConnectionsSkeleton() {
+function ConnectionsSkeleton({ count = 4 }: { count?: number }) {
   return (
-    <AdminCard>
-      <div className="mb-4 h-7 w-40 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div
-            key={i}
-            className="rounded-lg border border-gray-200 bg-background p-5 shadow-sm dark:border-gray-700"
-          >
-            <div className="mb-3 flex items-center justify-between">
-              <div className="h-5 w-28 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
-              <div className="h-2 w-2 animate-pulse rounded-full bg-gray-300 dark:bg-gray-600"></div>
-            </div>
-            <div className="mb-2">
-              <div className="h-5 w-20 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
-            </div>
+    <div
+      role="status"
+      aria-label="Loading connections"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4"
+    >
+      {Array.from({ length: count }, (_, i) => (
+        <div
+          key={i}
+          className="rounded-lg border border-gray-200 bg-background p-5 shadow-sm dark:border-gray-700"
+        >
+          <div className="mb-3 flex items-center justify-between">
+            <div className="h-5 w-28 animate-pulse rounded bg-gray-200 dark:bg-gray-700"></div>
+            <div className="h-2 w-2 animate-pulse rounded-full bg-gray-300 dark:bg-gray-600"></div>
           </div>
-        ))}
-      </div>
-    </AdminCard>
+          <div className="mb-2">
+            <div className="h-5 w-20 animate-pulse rounded-full bg-gray-200 dark:bg-gray-700"></div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ResolverConnections() {
+  const api = useTRPC();
+  const { t } = useTranslation();
+  const { data, isError } = useQuery(
+    api.admin.checkResolverConnections.queryOptions(undefined, {
+      refetchInterval: 10000,
+    }),
+  );
+  return (
+    <section
+      className="mt-6 border-t pt-5"
+      aria-labelledby="resolver-connections-title"
+    >
+      <h3 id="resolver-connections-title" className="text-base font-medium">
+        {t("admin.service_connections.resolver_title")}
+      </h3>
+      <p className="mb-4 mt-1 text-sm text-muted-foreground">
+        {t("admin.service_connections.resolver_health_notice")}
+      </p>
+      {isError ? (
+        <p role="alert" className="text-sm text-destructive">
+          {t("admin.service_connections.query_failed")}
+        </p>
+      ) : !data ? (
+        <ConnectionsSkeleton count={5} />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {data.map((health: ZResolverHealth) => (
+            <ConnectionStatus
+              key={health.id}
+              label={t(`admin.service_connections.resolvers.${health.id}`)}
+              configured={health.status !== "not_configured"}
+              connected={health.status === "connected"}
+              notChecked={health.status === "not_checked"}
+              statusLabel={
+                health.status === "error"
+                  ? t("admin.service_connections.status.check_failed")
+                  : undefined
+              }
+              error={
+                health.errorCode
+                  ? t(`admin.service_connections.errors.${health.errorCode}`, {
+                      status: health.httpStatus,
+                    })
+                  : undefined
+              }
+              checkedAt={health.checkedAt}
+              latencyMs={health.latencyMs}
+            />
+          ))}
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -115,10 +208,6 @@ export default function ServiceConnections() {
     }),
   );
 
-  if (!connections) {
-    return <ConnectionsSkeleton />;
-  }
-
   return (
     <AdminCard>
       <div className="mb-2 text-xl font-medium">
@@ -127,36 +216,41 @@ export default function ServiceConnections() {
       <p className="mb-4 text-sm text-muted-foreground">
         {t("admin.service_connections.description")}
       </p>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <ConnectionStatus
-          label={t("admin.service_connections.search_engine")}
-          configured={connections.searchEngine.configured}
-          connected={connections.searchEngine.connected}
-          pluginName={connections.searchEngine.pluginName}
-          error={connections.searchEngine.error}
-        />
-        <ConnectionStatus
-          label={t("admin.service_connections.browser")}
-          configured={connections.browser.configured}
-          connected={connections.browser.connected}
-          pluginName={connections.browser.pluginName}
-          error={connections.browser.error}
-        />
-        <ConnectionStatus
-          label={t("admin.service_connections.queue_system")}
-          configured={connections.queue.configured}
-          connected={connections.queue.connected}
-          pluginName={connections.queue.pluginName}
-          error={connections.queue.error}
-        />
-        <ConnectionStatus
-          label={t("admin.service_connections.vector_store")}
-          configured={connections.vectorStore.configured}
-          connected={connections.vectorStore.connected}
-          pluginName={connections.vectorStore.pluginName}
-          error={connections.vectorStore.error}
-        />
-      </div>
+      {!connections ? (
+        <ConnectionsSkeleton />
+      ) : (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <ConnectionStatus
+            label={t("admin.service_connections.search_engine")}
+            configured={connections.searchEngine.configured}
+            connected={connections.searchEngine.connected}
+            pluginName={connections.searchEngine.pluginName}
+            error={connections.searchEngine.error}
+          />
+          <ConnectionStatus
+            label={t("admin.service_connections.browser")}
+            configured={connections.browser.configured}
+            connected={connections.browser.connected}
+            pluginName={connections.browser.pluginName}
+            error={connections.browser.error}
+          />
+          <ConnectionStatus
+            label={t("admin.service_connections.queue_system")}
+            configured={connections.queue.configured}
+            connected={connections.queue.connected}
+            pluginName={connections.queue.pluginName}
+            error={connections.queue.error}
+          />
+          <ConnectionStatus
+            label={t("admin.service_connections.vector_store")}
+            configured={connections.vectorStore.configured}
+            connected={connections.vectorStore.connected}
+            pluginName={connections.vectorStore.pluginName}
+            error={connections.vectorStore.error}
+          />
+        </div>
+      )}
+      <ResolverConnections />
     </AdminCard>
   );
 }

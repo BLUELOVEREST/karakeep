@@ -225,6 +225,7 @@ export class User {
         tagStyle: true,
         curatedTagIds: true,
         inferredTagLang: true,
+        interfaceLang: true,
       },
     });
 
@@ -245,11 +246,12 @@ export class User {
       readerFontSize: settings.readerFontSize,
       readerLineHeight: settings.readerLineHeight,
       readerFontFamily: settings.readerFontFamily,
-      autoTaggingEnabled: settings.autoTaggingEnabled,
-      autoSummarizationEnabled: settings.autoSummarizationEnabled,
+      autoTaggingEnabled: settings.autoTaggingEnabled ?? true,
+      autoSummarizationEnabled: settings.autoSummarizationEnabled ?? false,
       tagStyle: settings.tagStyle ?? "as-generated",
       curatedTagIds: settings.curatedTagIds ?? null,
       inferredTagLang: settings.inferredTagLang,
+      interfaceLang: settings.interfaceLang,
     };
   }
 
@@ -280,6 +282,7 @@ export class User {
         tagStyle: input.tagStyle,
         curatedTagIds: input.curatedTagIds,
         inferredTagLang: input.inferredTagLang,
+        interfaceLang: input.interfaceLang,
       })
       .where(eq(users.id, this.user.id));
   }

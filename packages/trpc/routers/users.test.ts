@@ -230,10 +230,11 @@ describe("User Routes", () => {
       readerLineHeight: null,
 
       // AI Settings
-      autoSummarizationEnabled: null,
-      autoTaggingEnabled: null,
+      autoSummarizationEnabled: false,
+      autoTaggingEnabled: true,
       curatedTagIds: null,
       inferredTagLang: null,
+      interfaceLang: null,
       tagStyle: "titlecase-spaces",
     });
 
@@ -253,6 +254,7 @@ describe("User Routes", () => {
       autoSummarizationEnabled: true,
       autoTaggingEnabled: true,
       inferredTagLang: "en",
+      interfaceLang: "zh",
       tagStyle: "lowercase-underscores",
     });
 
@@ -276,8 +278,22 @@ describe("User Routes", () => {
       autoTaggingEnabled: true,
       curatedTagIds: null,
       inferredTagLang: "en",
+      interfaceLang: "zh",
       tagStyle: "lowercase-underscores",
     });
+
+    await caller.users.updateSettings({
+      inferredTagLang: "interface",
+      interfaceLang: "zh",
+    });
+    await caller.users.updateSettings({ interfaceLang: "ja" });
+    expect(await caller.users.settings()).toMatchObject({
+      inferredTagLang: "interface",
+      interfaceLang: "ja",
+    });
+    await expect(
+      caller.users.updateSettings({ interfaceLang: "invalid" }),
+    ).rejects.toThrow();
 
     // Test invalid update (e.g., empty input, if schema enforces it)
     await expect(() => caller.users.updateSettings({})).rejects.toThrow(

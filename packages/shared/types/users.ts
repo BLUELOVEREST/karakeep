@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { supportedLangs } from "../langs";
 
 import {
   containsUnsafeUserNameMarkup,
@@ -222,6 +223,14 @@ export const zUserSettingsSchema = z.object({
   tagStyle: zTagStyleSchema,
   curatedTagIds: z.array(z.string()).nullable(),
   inferredTagLang: z.string().nullable(),
+  interfaceLang: z
+    .string()
+    .refine(
+      (value) => supportedLangs.includes(value),
+      "Unsupported interface language",
+    )
+    .nullable()
+    .optional(),
 });
 
 export type ZUserSettings = z.infer<typeof zUserSettingsSchema>;
@@ -241,6 +250,7 @@ export const zUpdateUserSettingsSchema = zUserSettingsSchema.partial().pick({
   tagStyle: true,
   curatedTagIds: true,
   inferredTagLang: true,
+  interfaceLang: true,
 });
 
 export const zUpdateBackupSettingsSchema = zUpdateUserSettingsSchema.pick({
