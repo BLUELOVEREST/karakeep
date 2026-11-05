@@ -8,6 +8,8 @@ packages:
 nodeLinker: hoisted
 
 allowBuilds:
+  # Firebase generates its runtime defaults module during installation.
+  "@firebase/util": true
   "@sentry/cli": true
   "@swc/core": true
   better-sqlite3: true
